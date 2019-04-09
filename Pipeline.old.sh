@@ -86,10 +86,6 @@ do
       BAMSUFFIX="$2" # Use Files with this suffix [e.g. "Aligned.toTranscriptome.out.bam"]
       shift
       ;;
-      --metaData) # File Name and Path to store the metadata for each cell
-      METADATA="$2" # [Default: cells.metadata.txt]
-      shift
-      ;;
       --animal) # used animal for scRNA-seq
       ANIMAL="$2"
       shift
@@ -113,16 +109,6 @@ do
   esac
   shift
 done
-
-if [[ $METADATA == "" ]]; then
-  METADATA="./cells.metadata.txt"
-fi
-
-if [[ ! $RSEMRESULT =~ ^(genes|isoforms)$ ]]; then
-  echo "Please enter the RSEM output, which should be used for further analyses!"
-  echo "Enter 'genes' or 'isoforms'."
-  exit
-fi
 
 
 echo Reference Genome  = "${GENOME}"
@@ -480,24 +466,6 @@ for FILE in "${SE_STAR[@]}"; do
   fi
 done
 
-# cells.counts.txt cells.metadata.txt
-
 echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
+
 echo "The next step is quality control and visualization with scater"
-if [[ -f "./cell.counts.txt" ]]; then
-  i=1
-else
-  i=0
-fi
-for FILE in "${RSEMOUTPUTFILES[@]}"; do
-  CELL=$(basename $FILE)
-  RSEMOUTPUT="${FILE}.${rsemResult}.result"
-  if [[ $i=0 ]]; then
-    awk '{print $1,$4}' $RSEMOUTPUT > cell.counts.txt
-    i=1
-  else
-    paste cell.counts.txt $(awk '{print $4}' $RSEMOUTPUT)
-  fi
-
-
-done
