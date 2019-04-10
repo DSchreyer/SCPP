@@ -1,5 +1,5 @@
 #!/bin/bash
-./STAR_test.sh \
+./Pipeline.sh \
 --genome /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.95.gtf \
 --indicesDir /media/data/Daniel/test_data/indices \
@@ -15,7 +15,7 @@
 --threads 8 \
 --rsemResult "genes" \
 --rsemRef "yes" \
---rsemRefDir "test_data/RSEM/ref/Mus_musculus.GRCm38.95" \
+--rsemRefDir /media/data/Daniel/test_data/RSEM/ref/Mus_musculus.GRCm38.95 \
 --bamFiles "no" \
 --bamPaired /media/data/Daniel/test_data/STAR_output/PairedEnd \
 --bamSingle /media/data/Daniel/test_data/STAR_output/SingleEnd \
