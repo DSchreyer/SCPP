@@ -490,17 +490,21 @@ echo "The next step is quality control and visualization with scater"
 #fi
 i=0
 for FILE in "${RSEMOUTPUTFILES[@]}"; do
+  echo "Generate Metadata file for $FILE"
   CELL=$(basename $FILE)
   RSEMOUTPUT="${FILE}.${RSEMRESULT}.results"
-  if [[ $i=0 ]]; then
-    awk 'NR==1 {print $RSEMRESULT,$FILE} NR>1 {print $1,$5}' $RSEMOUTPUT > cell.counts.txt
+  if [[ $i == 0 ]]; then
+    awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT > cell.counts.txt
     awk '{print $1,$3}' $RSEMOUTPUT > gene.information.txt
-
     echo -e "cell\tanimal\tsex\tcondition\ttreatment" > ${METADATA}
     echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> ${METADATA}
     i=1
+    echo "This is the first file $FILE"
   else
     echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> ${METADATA}
-    paste cell.counts.txt <(awk 'NR==1 {print $FILE} NR>1 {print $5}' $RSEMOUTPUT) > cell.counts.txt
+    paste cell.counts.txt <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > cell.counts.temp.txt
+    cat cell.counts.temp.txt > cell.counts.txt
+    rm cell.counts.temp.txt
+    echo "This is not the first file $FILE"
   fi
 done
