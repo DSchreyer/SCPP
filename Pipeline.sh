@@ -169,11 +169,11 @@ SEDIR="$TRIMDIR/SingleEnd"
 PEDIR="$TRIMDIR/PairedEnd"
 
 # skip trimming with this command
-SE=(/media/data/Daniel/test_data/trimmomatic_output//SingleEnd/ERR522934_Filtered.fastq.gz)
-PE=(/media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR522959_.fastq /media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR523111_.fastq.gz)
+#SE=(/media/data/Daniel/test_data/trimmomatic_output//SingleEnd/ERR522934_Filtered.fastq.gz)
+#PE=(/media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR522959_.fastq /media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR523111_.fastq.gz)
 
 # skip trimming if trim == 1
-trim=0
+trim=1
 if [[ $trim ==  1 ]]; then
 
 for FILE in $(ls $DATA); do
@@ -352,6 +352,7 @@ SE_STAR=()
 for FILE in "${SE[@]}"; do
   echo $FILE
   if [[ $FILE =~ ^(.*)Filtered(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
+    echo "Start Aligning $FILE to $(basename $GENOMEINDEX)"
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
     ZIP=${BASH_REMATCH[3]}
@@ -409,7 +410,7 @@ echo $ANNOTATION
 if [[ $ANNOTATION =~ ^.*/(.*)(\..*)$ ]]; then
   ANNONAME=${BASH_REMATCH[1]}
   FORMAT=${BASH_REMATCH[2]}
-  PREP_REF=$RSEMREF/$ANNONAME
+  PREP_REF=$RSEMREFDIR/$ANNONAME
 
   if [[ $FORMAT == ".gtf" ]]; then
     ${RSEM}rsem-prepare-reference --gtf ${ANNOTATION} \

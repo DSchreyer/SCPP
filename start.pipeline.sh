@@ -3,7 +3,7 @@
 --genome /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.95.gtf \
 --indicesDir /media/data/Daniel/test_data/indices \
---index "yes" \
+--index "no" \
 --data /media/data/Daniel/test_data/data/ \
 --starDir /media/data/Daniel/test_data/STAR_output \
 --trimDir /media/data/Daniel/test_data/trimmomatic_output/ \
@@ -14,8 +14,8 @@
 --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
 --threads 8 \
 --rsemResult "genes" \
---rsemRef "yes" \
---rsemRefDir /media/data/Daniel/test_data/RSEM/ref/Mus_musculus.GRCm38.95 \
+--rsemRef "no" \
+--rsemRefDir /media/data/Daniel/test_data/RSEM/ref/ \
 --bamFiles "no" \
 --bamPaired /media/data/Daniel/test_data/STAR_output/PairedEnd \
 --bamSingle /media/data/Daniel/test_data/STAR_output/SingleEnd \
