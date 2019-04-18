@@ -3,7 +3,11 @@ while [[ $# -gt 0 ]]
 do
   option="$1"
 
-  case $option in
+  case $option
+      --projectName)
+      PROJECT="$2"
+      shift
+      ;;
       --genome)
       GENOME="$2"
       shift # past argument
@@ -86,7 +90,7 @@ do
       shift
       ;;
       --metaData) # File Name and Path to store the metadata for each cell
-      METADATA="$2" # [Default: cells.metadata.txt]
+      METADATA="$2" # [Default: ${PROJECT}.cells.metadata.txt]
       shift
       ;;
       --animal) # used animal for scRNA-seq
@@ -103,6 +107,10 @@ do
       ;;
       --treatment) # control or treatment groups?
       TREATMENT="$2"
+      shift
+      ;;
+      --output) # path to output directory - gene counts, metadata files get stored in
+      OUTPUT="$2"
       shift
       ;;
       *)
@@ -123,7 +131,7 @@ if [[ ! $RSEMRESULT =~ ^(genes|isoforms)$ ]]; then
   exit
 fi
 
-
+echo Project Name = "${PROJECT}"
 echo Reference Genome  = "${GENOME}"
 echo Annotation File     = "${ANNOTATION}"
 echo Data Directory = "${DATA}"
@@ -163,6 +171,10 @@ if [[ ! -d "${TRIMDIR}/SingleEnd" ]]; then
 fi
 if [[ ! -d "${RSEMDIR}" ]]; then
   mkdir "${RSEMDIR}"
+fi
+
+if [[ ! -d "${OUTPUT}" ]]; then
+  mkdir "${OUTPUT}"
 fi
 
 SEDIR="$TRIMDIR/SingleEnd"
@@ -483,29 +495,39 @@ done
 # cells.counts.txt, cells.metadata.txt, gene.information.txt
 
 echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
-echo "The next step is quality control and visualization with scater"
-#if [[ -f "./cell.counts.txt" ]]; then
-#  i=1
-#else
-#  i=0
-#fi
+
+METADATA="${OUTPUT}/${PROJECT}.cells.metadata.txt"
+CELLCOUNTS="${OUTPUT}/${PROJECT}.cells.counts.txt"
+GENEINF="${OUTPUT}/${PROJECT}.gene.information.txt"
+TEMP="${OUTPUT}/${PROJECT}.cell.counts.temp.txt"
+
 i=0
 for FILE in "${RSEMOUTPUTFILES[@]}"; do
   echo "Generate Metadata file for $FILE"
   CELL=$(basename $FILE)
   RSEMOUTPUT="${FILE}.${RSEMRESULT}.results"
   if [[ $i == 0 ]]; then
-    awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT > cell.counts.txt
-    awk '{print $1,$3}' $RSEMOUTPUT > gene.information.txt
-    echo -e "cell\tanimal\tsex\tcondition\ttreatment" > ${METADATA}
-    echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> ${METADATA}
+    if [[ ! -f ${CELLCOUNTS} ]]; then
+      awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT > "${CELLCOUNTS}"
+    else
+      paste $CELLCOUNTS <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > ${TEMP}
+      cat ${TEMP} > ${CELLCOUNTS}
+      rm ${TEMP}
+    fi
+    if [[ ! -f $GENEINF ]]; then
+      awk '{print $1,$3}' $RSEMOUTPUT > ${GENEINF}
+    fi
+    if [[ ! -f $METADATA ]]; then
+      echo -e "cell\tanimal\tsex\tcondition\ttreatment" > ${METADATA}
+    fi
+    echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> "${METADATA}"
     i=1
-    echo "This is the first file $FILE"
   else
     echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> ${METADATA}
-    paste cell.counts.txt <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > cell.counts.temp.txt
-    cat cell.counts.temp.txt > cell.counts.txt
-    rm cell.counts.temp.txt
-    echo "This is not the first file $FILE"
+    paste $CELLCOUNTS <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > $TEMP
+    cat $TEMP > $CELLCOUNTS
+    rm $TEMP
   fi
 done
+
+echo "The next step is quality control and visualization with scater"
