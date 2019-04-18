@@ -1,5 +1,7 @@
 #!/bin/bash
 ./Pipeline.sh \
+--projectName "Bassoon_scRNA-seq" \
+--output /media/data/Daniel/test_data/Output \
 --genome /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/test_data/genome/Mus_musculus.GRCm38.95.gtf \
 --indicesDir /media/data/Daniel/test_data/indices \
@@ -24,4 +26,4 @@
 --sex "F" \
 --condition "Bassoon Knockout" \
 --treatment "no treatment" \
-> /media/data/Daniel/pipeline.log.out
+> /media/data/Daniel/Output/pipeline.log.out
