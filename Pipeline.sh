@@ -3,7 +3,7 @@ while [[ $# -gt 0 ]]
 do
   option="$1"
 
-  case $option
+  case $option in
       --projectName)
       PROJECT="$2"
       shift
@@ -48,8 +48,20 @@ do
       TRIMMOMATIC="$2"
       shift
       ;;
-      --FastQC)
+      --fastqc)
       FASTQC="$2"
+      shift
+      ;;
+      --fastqcDir)
+      FASTQCDIR="$2"
+      shift
+      ;;
+      --multiqc)
+      MULTIQC="$2"
+      shift
+      ;;
+      --multiqcDir)
+      MULTIQCDIR="$2"
       shift
       ;;
       --STAR)
@@ -163,6 +175,10 @@ if [[ ! -d "${TRIMDIR}" ]]; then
   mkdir "${TRIMDIR}"
 fi
 
+if [[ ! -d "${FASTQCDIR}" ]]; then
+  mkdir "${FASTQCDIR}"
+fi
+
 if [[ ! -d "${TRIMDIR}/PairedEnd" ]]; then
   mkdir "${TRIMDIR}/PairedEnd"
 fi
@@ -184,6 +200,12 @@ PEDIR="$TRIMDIR/PairedEnd"
 #SE=(/media/data/Daniel/test_data/trimmomatic_output//SingleEnd/ERR522934_Filtered.fastq.gz)
 #PE=(/media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR522959_.fastq /media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR523111_.fastq.gz)
 
+# Quality Control with all files in the data Directory --- FastQC
+FILES=($(ls -d $DATA/*))
+echo "Quality Control of all files in ${DATA}"
+$FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
+
+exit
 # skip trimming if trim == 1
 trim=1
 if [[ $trim ==  1 ]]; then
@@ -206,7 +228,6 @@ for FILE in $(ls $DATA); do
         SE -phred33 $FILE $FILTERED \
         -threads ${THREADS} \
         LEADING:20 TRAILING:20 MINLEN:60
-
         SE+=($FILTERED)
       else
         FILE2="${DATA}/${SAMPLENAME}2${FORMAT}"
@@ -243,6 +264,10 @@ fi
 echo "SINGLE END: ${SE[@]}"
 echo "PAIRED END: ${PE[@]}"
 
+# Quality Control of trimmed files -- FastQC
+# Trimmed Single end Files:
+echo "Quality Control of trimmed single end files"
+$FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 
 if [ ! -d "${INDICESDIR}" ]; then
   mkdir ${INDICESDIR}
