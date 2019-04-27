@@ -205,7 +205,7 @@ FILES=($(ls -d $DATA/*))
 echo "Quality Control of all files in ${DATA}"
 $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 
-exit
+
 # skip trimming if trim == 1
 trim=1
 if [[ $trim ==  1 ]]; then
@@ -240,6 +240,8 @@ for FILE in $(ls $DATA); do
           LEADING:20 TRAILING:20 MINLEN:60
 
           PE+=($PEDIR/${SAMPLENAME}${FORMAT})
+          # Quality Control with FastQC
+          $FASTQC -o $FASTQCDIR -t $THREADS ${PEDIR}/${SAMPLENAME}_[12]P.${FORMAT}
         else
           echo "${FILE2} does not exist or has a different compression state"
           echo "${FILE} is Single End"
@@ -269,8 +271,12 @@ echo "PAIRED END: ${PE[@]}"
 echo "Quality Control of trimmed single end files"
 $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 
+
+
+exit
+
 if [ ! -d "${INDICESDIR}" ]; then
-  mkdir ${INDICESDIR}
+    mkdir ${INDICESDIR}
 fi
 
 
@@ -294,7 +300,6 @@ echo -e Annotation File     = "${ANNOTATION}\n"
 echo "Generate Genome Index"
 
 echo "${GENOMEINDEX}"
-
 if [[ ! ${GENOMEINDEX} =~ yes|y|n|no|Yes|No|Y|N|NO|YES ]]; then
   echo "Please specify, if the STAR indices are available or need to be generated"
   exit
@@ -556,3 +561,19 @@ for FILE in "${RSEMOUTPUTFILES[@]}"; do
 done
 
 echo "The next step is quality control and visualization with scater"
+
+
+
+if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
+    if [[ -z ${IMPUTOUT+x} ]]; then
+        DIR=$(dirname "${CELLCOUNTS}")
+        BASE=$(basename "${CELLCOUNTS}")
+        IMPOUTPUT=$DIR/imputed.$BASE
+    fi
+    echo "Perform imputation on raw count table"
+    ./impute_counts.R $CELLCOUNTS $IMPOUTPUT
+fi
+
+echo "Perform imputation with scImpute before normalization, to reduce dropouts"
+
+

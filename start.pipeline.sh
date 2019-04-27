@@ -11,6 +11,7 @@
 --trimDir /media/data/Daniel/test_data/trimmomatic_output/ \
 --rsemDir /media/data/Daniel/test_data/RSEM \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
+--multiqc media/data/tools/anaconda3/bin/multiqc \
 --fastqc /media/data/tools/FastQC/fastqc \
 --fastqcDir /media/data/Daniel/test_data/FastQC_output \
 --RSEM /media/data/tools/RSEM-1.3.1/ \
