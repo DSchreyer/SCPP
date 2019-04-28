@@ -27,5 +27,5 @@
 --animal "mouse" \
 --sex "F" \
 --condition "Bassoon Knockout" \
---treatment "no treatment" \
+--treatment "treatment" \
 > /media/data/Daniel/Output/pipeline.log.out
