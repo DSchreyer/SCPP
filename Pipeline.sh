@@ -12,7 +12,7 @@ do
       GENOME="$2"
       shift # past argument
       ;;
-      --annotation)
+      --anotation)
       ANNOTATION="$2"
       shift # past argument
       ;;
@@ -133,6 +133,13 @@ do
   shift
 done
 
+function make_dir{
+    local dir=$1
+    if [[ ! -d $dir ]]; then
+        mkdir -p $dir
+    fi
+}
+
 if [[ $METADATA == "" ]]; then
   METADATA="./cells.metadata.txt"
 fi
@@ -145,7 +152,7 @@ fi
 
 echo Project Name = "${PROJECT}"
 echo Reference Genome  = "${GENOME}"
-echo Annotation File     = "${ANNOTATION}"
+echo Annotation File = "${ANNOTATION}"
 echo Data Directory = "${DATA}"
 echo Trimmomatic Output Directory = "${TRIMDIR}"
 echo Genome Index available = "${GENOMEINDEX}"
@@ -170,28 +177,22 @@ then
   Please enter a fasta file.\n"
 fi
 
-# create directories for trimmomatic output files
-if [[ ! -d "${TRIMDIR}" ]]; then
-  mkdir "${TRIMDIR}"
-fi
+# create directories for essential outputs
 
-if [[ ! -d "${FASTQCDIR}" ]]; then
-  mkdir "${FASTQCDIR}"
-fi
+make_dir $TRIMDIR
+make_dir $FASTQCDIR
+make_dir "${TRIMDIR}/PairedEnd"
+make_dir "${TRIMDIR}/SingleEnd"
+make_dir $RSEMDIR
+make_dir $OUTPUT
+make_dir $BAMPAIRED
+make_dir $BAMSINGLE
+make_dir $INDICESDIR
+make_dir $STARDIR
+make_dir "{$STARDIR}/SingleEnd"
+make_dir "${STARDIR}/PairedEnd"
+make_dir $RSEMREFDIR
 
-if [[ ! -d "${TRIMDIR}/PairedEnd" ]]; then
-  mkdir "${TRIMDIR}/PairedEnd"
-fi
-if [[ ! -d "${TRIMDIR}/SingleEnd" ]]; then
-  mkdir "${TRIMDIR}/SingleEnd"
-fi
-if [[ ! -d "${RSEMDIR}" ]]; then
-  mkdir "${RSEMDIR}"
-fi
-
-if [[ ! -d "${OUTPUT}" ]]; then
-  mkdir "${OUTPUT}"
-fi
 
 SEDIR="$TRIMDIR/SingleEnd"
 PEDIR="$TRIMDIR/PairedEnd"
@@ -272,14 +273,6 @@ echo "Quality Control of trimmed single end files"
 $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 
 
-
-exit
-
-if [ ! -d "${INDICESDIR}" ]; then
-    mkdir ${INDICESDIR}
-fi
-
-
 if [[ $GENOME =~ .*fa.gz ]]
 then
 	echo "unzip genome fasta file"
@@ -287,16 +280,17 @@ then
 	GENOME=$(echo "${GENOME}" | sed 's/.gz$//')
 fi
 
-
+ANNOZIP=0
 # gunzip gzipped annotation file
 if [[ $ANNOTATION =~ .*gtf.gz ]]; then
-	echo -e "unzip annotation file ${ANNOTATION}\n"
+	echo  "unzip annotation file ${ANNOTATION}"
 	gunzip --keep "${ANNOTATION}"
 	ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
+    ANNOZIP=1
 fi
 
 
-echo -e Annotation File     = "${ANNOTATION}\n"
+echo Annotation File = "${ANNOTATION}"
 echo "Generate Genome Index"
 
 echo "${GENOMEINDEX}"
@@ -327,18 +321,6 @@ fi
 
 STARPAIREDDIR=${STARDIR}/PairedEnd
 STARSINGLEDIR=${STARDIR}/SingleEnd
-if [ ! -d "${STARDIR}" ]; then
-  mkdir "${STARDIR}"
-  mkdir "${STARDIR}/PairedEnd"
-  mkdir "${STARDIR}/SingleEnd"
-else
-  if [ ! -d "${STARPAIREDDIR}" ]; then
-    mkdir "${STARPAIREDDIR}"
-  fi
-  if [ ! -d "${STARSINGLEDIR}" ]; then
-    mkdir "${STARSINGLEDIR}"
-  fi
-fi
 
 
 # skip star alignment
@@ -443,41 +425,40 @@ echo -e "Quantification with RSEM\n"
 
 if [[ $RSEMREF == "no" ]]; then
 
-if [ ! -d "${RSEMREFDIR}" ]; then
-  mkdir "${RSEMREFDIR}"
-fi
-
-echo -e "Prepare Reference with RSEM\n"
+echo "Prepare Reference with RSEM"
 echo $ANNOTATION
 if [[ $ANNOTATION =~ ^.*/(.*)(\..*)$ ]]; then
-  ANNONAME=${BASH_REMATCH[1]}
-  FORMAT=${BASH_REMATCH[2]}
-  PREP_REF=$RSEMREFDIR/$ANNONAME
+    ANNONAME=${BASH_REMATCH[1]}
+    FORMAT=${BASH_REMATCH[2]}
+    PREP_REF=$RSEMREFDIR/$ANNONAME
 
-  if [[ $FORMAT == ".gtf" ]]; then
-    ${RSEM}rsem-prepare-reference --gtf ${ANNOTATION} \
-    ${GENOME} \
-    ${PREP_REF}
-  elif [[ $FORMAT == ".gff" ]]; then
-    ${RSEM}rsem-prepare-reference --gff ${ANNOTATION} \
-    ${GENOME} \test_datest_da
-    ${PREP_REF}
-  else
-    echo "$ANNOTATION has the wrong format. GFF and GTF Format accepted"
-    exit
-  fi
-  echo "Prepare Reference with RSEM: DONE!\n"
-  echo "Reference Files are stored in ${PREP_REF}"
+    if [[ $FORMAT == ".gtf" ]]; then
+        ${RSEM}rsem-prepare-reference --gtf ${ANNOTATION} \
+        ${GENOME} \
+        ${PREP_REF}
+    elif [[ $FORMAT == ".gff" ]]; then
+        ${RSEM}rsem-prepare-reference --gff ${ANNOTATION} \
+        ${GENOME} \test_datest_da
+        ${PREP_REF}
+    else
+        echo "$ANNOTATION has the wrong format. GFF and GTF Format accepted"
+        exit
+    fi
+    echo "Prepare Reference with RSEM: DONE!\n"
+    echo "Reference Files are stored in ${PREP_REF}"
 fi
 else
   echo "Skipped preparing reference with RSEM"
   PREP_REF=${RSEMREFDIR}
 fi
 
-RSEMOUTPUTDIR=${RSEMDIR/Output}
-if [[ ! -d "${RSEMOUTPUTDIR}" ]]; then
-  mkdir "${RSEMOUTPUTDIR}"
+if [[ $ANNOZIP == 1 ]]; then
+    echo "Remove unzipped annotation file"
+    rm $ANNOTATION
 fi
+
+RSEMOUTPUTDIR=${RSEMDIR/Output}
+make_dir RSEMOUTPUTDIR
 
 
 echo "PAIRED END FILES: ${PE_STAR[@]}"
@@ -485,24 +466,23 @@ echo "SINGLE END FILES: ${SE_STAR[@]}"
 
 RSEMOUTPUTFILES=()
 for FILE in "${PE_STAR[@]}"; do
-  echo $FILE
-  echo ""
+    echo $FILE
 
-  RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
-  if [[ -f ${RSEMINPUT} ]]; then
-    RSEMOUTPUTFILES+=(${RSEMOUTPUTDIR}/$(basename $FILE))
-    echo "Quantification with RSEM: ${RSEMINPUT}"
-    ${RSEM}rsem-calculate-expression \
-    --no-bam-output \
-    --paired-end \
-    -p $THREADS \
-    --alignments ${RSEMINPUT} \
-    ${PREP_REF} \
-    ${RSEMOUTPUTDIR}/$(basename $FILE)
-  else
-    echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
-    exit
-  fi
+    RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
+    if [[ -f ${RSEMINPUT} ]]; then
+        RSEMOUTPUTFILES+=(${RSEMOUTPUTDIR}/$(basename $FILE))
+        echo "Quantification with RSEM: ${RSEMINPUT}"
+        ${RSEM}/rsem-calculate-expression \
+        --no-bam-output \
+        --paired-end \
+        -p $THREADS \
+        --alignments ${RSEMINPUT} \
+        ${PREP_REF} \
+        ${RSEMOUTPUTDIR}/$(basename $FILE)
+    else
+        echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
+        exit
+    fi
 done
 
 for FILE in "${SE_STAR[@]}"; do
@@ -510,7 +490,7 @@ for FILE in "${SE_STAR[@]}"; do
   if [[ -f ${RSEMINPUT} ]]; then
     echo "Quantification with RSEM: ${RSEMINPUT}"
     RSEMOUTPUTFILES+=(${RSEMOUTPUTDIR}/$(basename $FILE))
-    ${RSEM}rsem-calculate-expression \
+    ${RSEM}/rsem-calculate-expression \
     --no-bam-output \
     -p $THREADS \
     --alignments ${RSEMINPUT} \
@@ -560,20 +540,20 @@ for FILE in "${RSEMOUTPUTFILES[@]}"; do
   fi
 done
 
-echo "The next step is quality control and visualization with scater"
 
-
-
+# If imputation is requested: Perform imputation on the raw count table
 if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
+    echo "Perform imputation with scImpute before normalization, to reduce dropouts"
     if [[ -z ${IMPUTOUT+x} ]]; then
         DIR=$(dirname "${CELLCOUNTS}")
         BASE=$(basename "${CELLCOUNTS}")
         IMPOUTPUT=$DIR/imputed.$BASE
     fi
-    echo "Perform imputation on raw count table"
+    echo "Perform imputation on raw count table ${CELLCOUNTS} and save it in $IMPOUTPUT"
     ./impute_counts.R $CELLCOUNTS $IMPOUTPUT
 fi
 
-echo "Perform imputation with scImpute before normalization, to reduce dropouts"
 
 
+echo "The next step is quality control and visualization with scater"
+echo "Shell script finished: Next steps are done in R"
