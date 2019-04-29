@@ -249,13 +249,13 @@ else
   echo "Skip Trimming with Trimmomatic"
 fi
 
-echo "SINGLE END: ${SE[@]}"
-echo "PAIRED END: ${PE[@]}"
-
 # Quality Control of trimmed files -- FastQC
 # Trimmed Single end Files:
 echo "Quality Control of trimmed single end files"
 $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
+
+echo "SINGLE END: ${SE[@]}"
+echo "PAIRED END: ${PE[@]}"
 
 
 if [[ $GENOME =~ .*fa.gz ]]
