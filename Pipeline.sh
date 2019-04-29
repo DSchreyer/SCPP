@@ -142,6 +142,10 @@ RSEMDIR=$OUTPUT/RSEM_output
 BAMSINGLE=$STARDIR/SingleEnd
 BAMPAIRED=$STARDIR/PairedEnd
 MULTIQCDIR=$OUTPUT/MultiQC_output
+SEDIR="$TRIMDIR/SingleEnd"
+PEDIR="$TRIMDIR/PairedEnd"
+STARPAIREDDIR=${STARDIR}/PairedEnd
+STARSINGLEDIR=${STARDIR}/SingleEnd
 
 make_dir $OUTPUT
 make_dir $TRIMDIR
@@ -154,7 +158,7 @@ make_dir $BAMPAIRED
 make_dir $BAMSINGLE
 make_dir $INDICESDIR
 make_dir $STARDIR
-make_dir "{$STARDIR}/SingleEnd"
+make_dir "${STARDIR}/SingleEnd"
 make_dir "${STARDIR}/PairedEnd"
 make_dir $RSEMREFDIR
 
@@ -179,8 +183,6 @@ echo BAM Files = "$BAMFILES"
 echo Directory for paired end BAM files = "$BAMPAIRED"
 echo Directory for single end BAM files = "$BAMSINGLE"
 
-SEDIR="$TRIMDIR/SingleEnd"
-PEDIR="$TRIMDIR/PairedEnd"
 
 # skip trimming with this command
 #SE=(/media/data/Daniel/test_data/trimmomatic_output//SingleEnd/ERR522934_Filtered.fastq.gz)
@@ -304,8 +306,6 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   echo "Stored genome indices in ${INDICESDIR}"
 fi
 
-STARPAIREDDIR=${STARDIR}/PairedEnd
-STARSINGLEDIR=${STARDIR}/SingleEnd
 
 
 # skip star alignment
