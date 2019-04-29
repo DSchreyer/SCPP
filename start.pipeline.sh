@@ -23,3 +23,19 @@
 --condition "Bassoon Knockout" \
 --treatment "treatment" \
 > /media/data/Daniel/Scripts/pipeline.log.out
+
+# For every single cell sample create one directory with the sequencing files
+# Do not change project name, while running pipeline multiple times
+# reference genome/transcriptome needs to be in .fa format
+# annotation file needs .gtf format
+
+# Software used:
+# Trimmomatic: -preinstalled --- Version 0.36
+# FastQC: -preinstalled --- FastQC v0.11.3
+# STAR: https://github.com/alexdobin/STAR --- Version 2.7.0e
+# RSEM: https://deweylab.github.io/RSEM/ --- Version 1.3.1
+# scater: R-Package - Bioconductor --- Version 1.10.1
+# scran: R-Package - Bioconductor --- Version 1.10.2
+# Seurat: R-Package --- Version 3.0.0
+# dplyr: R-Package --- Version 0.8.0.1
+# ggplot2: R-Package --- Version 3.1.1
