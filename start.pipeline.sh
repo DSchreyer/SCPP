@@ -7,13 +7,8 @@
 --indicesDir /media/data/Daniel/test_data/indices \
 --index "no" \
 --data /media/data/Daniel/test_data/data/ \
---starDir /media/data/Daniel/test_data/STAR_output \
---trimDir /media/data/Daniel/test_data/trimmomatic_output/ \
---rsemDir /media/data/Daniel/test_data/RSEM \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
---multiqc media/data/tools/anaconda3/bin/multiqc \
 --fastqc /media/data/tools/FastQC/fastqc \
---fastqcDir /media/data/Daniel/test_data/FastQC_output \
 --RSEM /media/data/tools/RSEM-1.3.1/ \
 --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
 --threads 8 \
@@ -21,11 +16,10 @@
 --rsemRef "no" \
 --rsemRefDir /media/data/Daniel/test_data/RSEM/ref/ \
 --bamFiles "no" \
---bamPaired /media/data/Daniel/test_data/STAR_output/PairedEnd \
---bamSingle /media/data/Daniel/test_data/STAR_output/SingleEnd \
+--impute "no" \
 --metaData /media/data/Daniel/cells.metadata.txt \
 --animal "mouse" \
 --sex "F" \
 --condition "Bassoon Knockout" \
 --treatment "treatment" \
-> /media/data/Daniel/Output/pipeline.log.out
+> /media/data/Daniel/Scripts/pipeline.log.out

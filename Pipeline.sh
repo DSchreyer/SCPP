@@ -12,7 +12,7 @@ do
       GENOME="$2"
       shift # past argument
       ;;
-      --anotation)
+      --annotation)
       ANNOTATION="$2"
       shift # past argument
       ;;
@@ -28,18 +28,6 @@ do
       DATA="$2"
       shift
       ;;
-      --trimDir) # specify trimmomatic output directory
-      TRIMDIR="$2"
-      shift
-      ;;
-      --starDir)
-      STARDIR="$2"
-      shift
-      ;;
-      --rsemDir)
-      RSEMDIR="$2"
-      shift
-      ;;
       --threads)
       THREADS="$2"
       shift
@@ -52,16 +40,8 @@ do
       FASTQC="$2"
       shift
       ;;
-      --fastqcDir)
-      FASTQCDIR="$2"
-      shift
-      ;;
       --multiqc)
       MULTIQC="$2"
-      shift
-      ;;
-      --multiqcDir)
-      MULTIQCDIR="$2"
       shift
       ;;
       --STAR)
@@ -89,16 +69,12 @@ do
       BAMFILES="$2" # "no" -> do alignment, yes -> specifiy bam dir for paired end reads and single end
       shift
       ;;
-      --bamPaired)
-      BAMPAIRED="$2" # Bam files directory for paired end readss
-      shift
-      ;;
-      --bamSingle)
-      BAMSINGLE="$2"
-      shift
-      ;;
       --bamSuffix)
       BAMSUFFIX="$2" # Use Files with this suffix [e.g. "Aligned.toTranscriptome.out.bam"]
+      shift
+      ;;
+      --impute)
+      IMPUTE="$2" # Yes, if cell counts should be imputed to identify real dropouts
       shift
       ;;
       --metaData) # File Name and Path to store the metadata for each cell
@@ -121,7 +97,7 @@ do
       TREATMENT="$2"
       shift
       ;;
-      --output) # path to output directory - gene counts, metadata files get stored in
+      --output) # Store output files in this directory 
       OUTPUT="$2"
       shift
       ;;
@@ -133,8 +109,8 @@ do
   shift
 done
 
-function make_dir{
-    local dir=$1
+make_dir (){
+    local dir="${1}"
     if [[ ! -d $dir ]]; then
         mkdir -p $dir
     fi
@@ -150,26 +126,6 @@ if [[ ! $RSEMRESULT =~ ^(genes|isoforms)$ ]]; then
   exit
 fi
 
-echo Project Name = "${PROJECT}"
-echo Reference Genome  = "${GENOME}"
-echo Annotation File = "${ANNOTATION}"
-echo Data Directory = "${DATA}"
-echo Trimmomatic Output Directory = "${TRIMDIR}"
-echo Genome Index available = "${GENOMEINDEX}"
-echo Indices Directory = "${INDICESDIR}"
-echo Number of Threads = "${THREADS}"
-echo RSEM Directory = "$RSEMDIR"
-echo STAR Directory = "${STARDIR}"
-echo FASTQC PATH = "${FASTQC}"
-echo Trimmomatic Path = "${TRIMMOMATIC}"
-echo STAR Path = "${STAR}"
-echo RSEM Path = "${RSEM}"
-echo RSEM REF Prepaired = "${RSEMREF}"
-echo Prepared RSEM reference in "${RSEMREFDIR}"
-echo Use calculated expression of "${RSEMRESULT}"
-echo BAM Files = "$BAMFILES"
-echo Directory for paired end BAM files = "$BAMPAIRED"
-echo Directory for single end BAM files = "$BAMSINGLE"
 
 if [[ ! -f $GENOME || $GENOME =~ [^.*fa(.gz)?]$ ]]
 then
@@ -202,6 +158,26 @@ make_dir "{$STARDIR}/SingleEnd"
 make_dir "${STARDIR}/PairedEnd"
 make_dir $RSEMREFDIR
 
+echo Project Name = "${PROJECT}"
+echo Reference Genome  = "${GENOME}"
+echo Annotation File = "${ANNOTATION}"
+echo Data Directory = "${DATA}"
+echo Trimmomatic Output Directory = "${TRIMDIR}"
+echo Genome Index available = "${GENOMEINDEX}"
+echo Indices Directory = "${INDICESDIR}"
+echo Number of Threads = "${THREADS}"
+echo RSEM Directory = "$RSEMDIR"
+echo STAR Directory = "${STARDIR}"
+echo FASTQC PATH = "${FASTQC}"
+echo Trimmomatic Path = "${TRIMMOMATIC}"
+echo STAR Path = "${STAR}"
+echo RSEM Path = "${RSEM}"
+echo RSEM REF Prepaired = "${RSEMREF}"
+echo Prepared RSEM reference in "${RSEMREFDIR}"
+echo Use calculated expression of "${RSEMRESULT}"
+echo BAM Files = "$BAMFILES"
+echo Directory for paired end BAM files = "$BAMPAIRED"
+echo Directory for single end BAM files = "$BAMSINGLE"
 
 SEDIR="$TRIMDIR/SingleEnd"
 PEDIR="$TRIMDIR/PairedEnd"
@@ -251,7 +227,7 @@ for FILE in $(ls $DATA); do
 
           PE+=($PEDIR/${SAMPLENAME}${FORMAT})
           # Quality Control with FastQC
-          $FASTQC -o $FASTQCDIR -t $THREADS ${PEDIR}/${SAMPLENAME}_[12]P.${FORMAT}
+          $FASTQC -o $FASTQCDIR -t $THREADS ${PEDIR}/${SAMPLENAME}_[12]P${FORMAT}
         else
           echo "${FILE2} does not exist or has a different compression state"
           echo "${FILE} is Single End"
@@ -429,7 +405,7 @@ done
 else
   echo "Skipped STAR Alignment"
 fi
-echo -e "Quantification with RSEM\n"
+echo "Quantification with RSEM"
 
 
 if [[ $RSEMREF == "no" ]]; then
@@ -453,7 +429,7 @@ if [[ $ANNOTATION =~ ^.*/(.*)(\..*)$ ]]; then
         echo "$ANNOTATION has the wrong format. GFF and GTF Format accepted"
         exit
     fi
-    echo "Prepare Reference with RSEM: DONE!\n"
+    echo "Prepare Reference with RSEM: DONE!"
     echo "Reference Files are stored in ${PREP_REF}"
 fi
 else
@@ -567,5 +543,6 @@ fi
 # Do Differential expression analysis 
 echo "Generated count table. Stored in ${CELLCOUNTS}."
 echo "Generated metadata file. Stored in ${METADATA}."
+echo "Start Quality Control and Normalization with scater and scran in R!"
 ./R_pipeline.R $CELLCOUNTS $METADATA
 
