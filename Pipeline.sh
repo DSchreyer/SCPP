@@ -77,10 +77,6 @@ do
       IMPUTE="$2" # Yes, if cell counts should be imputed to identify real dropouts
       shift
       ;;
-      --metaData) # File Name and Path to store the metadata for each cell
-      METADATA="$2" # [Default: ${PROJECT}.cells.metadata.txt]
-      shift
-      ;;
       --animal) # used animal for scRNA-seq
       ANIMAL="$2"
       shift
@@ -183,16 +179,10 @@ echo BAM Files = "$BAMFILES"
 echo Directory for paired end BAM files = "$BAMPAIRED"
 echo Directory for single end BAM files = "$BAMSINGLE"
 
-
-# skip trimming with this command
-#SE=(/media/data/Daniel/test_data/trimmomatic_output//SingleEnd/ERR522934_Filtered.fastq.gz)
-#PE=(/media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR522959_.fastq /media/data/Daniel/test_data/trimmomatic_output//PairedEnd/ERR523111_.fastq.gz)
-
 # Quality Control with all files in the data Directory --- FastQC
 FILES=($(ls -d $DATA/*))
 echo "Quality Control of all files in ${DATA}"
 $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
-
 
 # skip trimming if trim == 1
 trim=1
@@ -251,8 +241,7 @@ else
   echo "Skip Trimming with Trimmomatic"
 fi
 
-# Quality Control of trimmed files -- FastQC
-# Trimmed Single end Files:
+# Quality Control of trimmed single end files with FastQC
 echo "Quality Control of trimmed single end files"
 $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 
@@ -305,7 +294,6 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   fi
   echo "Stored genome indices in ${INDICESDIR}"
 fi
-
 
 
 # skip star alignment
@@ -494,7 +482,7 @@ echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
 METADATA="${OUTPUT}/${PROJECT}.cells.metadata.txt"
 CELLCOUNTS="${OUTPUT}/${PROJECT}.cells.counts.txt"
 GENEINF="${OUTPUT}/${PROJECT}.gene.information.txt"
-TEMP="${OUTPUT}/${PROJECT}.cell.counts.temp.txt"
+TEMP="${OUTPUT}/${PROJECT}.cells.counts.temp.txt"
 
 i=0
 for FILE in "${RSEMOUTPUTFILES[@]}"; do

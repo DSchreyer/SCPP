@@ -17,7 +17,6 @@
 --rsemRefDir /media/data/Daniel/test_data/RSEM/ref/ \
 --bamFiles "no" \
 --impute "no" \
---metaData /media/data/Daniel/cells.metadata.txt \
 --animal "mouse" \
 --sex "F" \
 --condition "Bassoon Knockout" \
