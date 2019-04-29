@@ -3,8 +3,16 @@ library(dplyr)
 library(ggplot2)
 library(tidyr)
 library(scater)
+library(scran)
+library(Seurat)
+
 
 args <- commandArgs(TRUE)
+
+library(org.Mm.eg.db)
+
+all.ensembl <- unique(toTable(org.Mm.egENSEMBL)$ensembl_id)
+
 
 ## Testing ##
 args <- c("/home/daniel/master_thesis/single_cell_data/GSE80232_vsx2.RSEM.genes.counts.matrix.txt", "")
@@ -49,12 +57,12 @@ cpm(sce) <- calculateCPM(sce)
 
 
 # Compute quality control (QC) metrics for each feature and cell - Controls: Spike ins or mt genes
-is.spike <- grepl("^Ercc", rownames(sce))
+isSpike <- grepl("^Ercc", rownames(sce))
 is.mito <- grepl("^mt-", rownames(sce))
 
 cat("Number of mt genes:", sum(is.mito))
-cat("Number of ERCC Spike ins:", sum(is.spike))
-qc <- calculateQCMetrics(sce, exprs_values = "counts", feature_controls = list(ERCC=is.spike,
+cat("Number of ERCC Spike ins:", sum(isSpike))
+qc <- calculateQCMetrics(sce, exprs_values = "counts", feature_controls = list(ERCC=isSpike,
                                                                                MT=is.mito))
 
 # Drop cells with log-library sizes with more that 3 median absloute deviations (MADs) below median log-library sizes 
@@ -89,3 +97,107 @@ plotPCA(sce)
 plotTSNE(sce)
 
 print("DONE: Quality Control with Scater")
+
+# Normalization and Cell Cycle Asignment with Scran -- Normalization possible with Deconvolution method or with spike-in counts
+# Default: Deconvolution method
+print("START: Normalization with Scran")
+
+print("Cell cycle phase assignment")
+# using mouse cycle markers file which is implemented in the scran package
+# genes need ensemble id instead of normal gene names
+mm.pairs <- readRDS(system.file("exdata", "mouse_cycle_markers.rds", package="scran"))
+assigned <- cyclone(as.matrix(data), pairs=mm.pairs)
+head(assigned)
+table(assigned$phases)
+
+# after that we can filter out low abundance genes 
+# Cells should be in G1 phase --> only use G1 cells
+# filter out cells with other cell cycle phases
+
+
+# Normalization with large data sets use "quickCluster" before Normalization
+# clusters <- quickCluster(sce, min.size = 100)
+
+# Normalization with computeSumFactors (Scran)
+sce <- normalize(sce)
+
+
+# Batch correction possible
+
+# Seurat 
+# Create Seurat object
+genes <- rownames(sce)
+cell <- colnames(sce)
+
+# extract normalized counts from sce object
+table <- unlist(sce@assays$data[2])
+colnames(table) <- cell
+rownames(table) <- genes
+
+# Initialize Seurat object with normalized data
+SO <- CreateSeuratObject(counts = table, project = "Test",
+                         min.cells = 3, min.features = 200)
+
+# Find top variable features. Selection.method: vst, mean.var.plot, dispersion
+# vst default 
+SO <- FindVariableFeatures(object = SO, selection.method = "vst",
+                           nfeatures = 2000)
+
+# identify the 20 most highly variable genes
+top10 <- head(VariableFeatures(SO), 10)
+
+# plot vairable features with and without labels
+plot1 <- VariableFeaturePlot(SO)
+plot2 <- LabelPoints(plot = plot1, points = top10)
+plot1
+plot2
+CombinePlots(plots = list(plot1, plot2))
+
+
+
+# scaling the data --> linear transfromation 
+# preprocessing step prior to dimensional reduction techniques
+SO <- ScaleData(SO, features = genes)
+
+# Perform linear dimensional reduction
+# PCA
+SO <- RunPCA(SO, features = VariableFeatures(SO))
+
+# examine and visualize PCA results a few different ways
+print(SO[["pca"]], dims = 1:5, nfeatures = 5)
+
+
+VizDimLoadings(SO, dims = 1:2, redutction = "pca")
+
+DimPlot(SO, reduction = "pca")
+
+DimHeatmap(SO, dims = 1, cells = 234, balanced = TRUE)
+
+DimHeatmap(SO, dims = 1:15, cells = 234, balanced = TRUE)
+
+# Determine the dimensionality of the dataset
+# randomly permute a subset of the data (1% default) and rerun PCA
+# constructiong a "null distribution" of feature scores
+
+SO <- JackStraw(SO, num.replicate = 100)
+SO <- ScoreJackStraw(SO, dims = 1:20)
+
+JackStrawPlot(SO, dims = 1:15)
+
+# Elbow plot
+ElbowPlot(SO)
+
+# Cluster the cells
+SO <- FindNeighbors(SO, dims = 1:10)
+SO <- FindClusters(SO, resolution = 0.5)
+
+# Look at cluster IDs of the first 5 cells
+head(x = Idents(SO), 5)
+
+# Run non-linear dimensional reduction (tSNE/UMAP)
+SO <- RunUMAP(SO, dims = 1:10)
+DimPlot(SO, reduction = "umap")
+
+# find differently expressed features in all clusters
+SO.markers <- FindAllMarkers(SO, only.pos = TRUE, min.pct = 0.25, logfc.threshold = 0.25)
+SO.markers %>% group_by(cluster) %>% top_n(n = -5, wt = p_val)
