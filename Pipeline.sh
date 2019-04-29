@@ -174,11 +174,20 @@ echo Directory for single end BAM files = "$BAMSINGLE"
 if [[ ! -f $GENOME || $GENOME =~ [^.*fa(.gz)?]$ ]]
 then
   echo -e "${GENOME} is not a file or has the wrong format.
-  Please enter a fasta file.\n"
+  Please enter a reference genome in fasta format.\n"
 fi
 
 # create directories for essential outputs
 
+TRIMDIR=$OUTPUT/trimmomatic_output
+FASTQCDIR=$OUTPUT/FastQC_output
+STARDIR=$OUTPUT/STAR_output
+RSEMDIR=$OUTPUT/RSEM_output
+BAMSINGLE=$STARDIR/SingleEnd
+BAMPAIRED=$STARDIR/PairedEnd
+MULTIQCDIR=$OUTPUT/MultiQC_output
+
+make_dir $OUTPUT
 make_dir $TRIMDIR
 make_dir $FASTQCDIR
 make_dir "${TRIMDIR}/PairedEnd"
@@ -540,7 +549,6 @@ for FILE in "${RSEMOUTPUTFILES[@]}"; do
   fi
 done
 
-
 # If imputation is requested: Perform imputation on the raw count table
 if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
     echo "Perform imputation with scImpute before normalization, to reduce dropouts"
@@ -553,7 +561,11 @@ if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
     ./impute_counts.R $CELLCOUNTS $IMPOUTPUT
 fi
 
+# shell script finished -- start R Pipeline
+# Generating Heatmaps, PCA, tSNE, 
+# Find Marker genes
+# Do Differential expression analysis 
+echo "Generated count table. Stored in ${CELLCOUNTS}."
+echo "Generated metadata file. Stored in ${METADATA}."
+./R_pipeline.R $CELLCOUNTS $METADATA
 
-
-echo "The next step is quality control and visualization with scater"
-echo "Shell script finished: Next steps are done in R"
