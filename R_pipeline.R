@@ -13,11 +13,6 @@ library(org.Mm.eg.db)
 
 all.ensembl <- unique(toTable(org.Mm.egENSEMBL)$ensembl_id)
 
-
-## Testing ##
-args <- c("/home/daniel/master_thesis/single_cell_data/GSE80232_vsx2.RSEM.genes.counts.matrix.txt", "")
-####
-
 count.file <- as.character(args[1])
 metadata.file <- as.character(args[2])
 
