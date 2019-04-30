@@ -5,7 +5,7 @@
 --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz \
 --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf.gz \
 --indicesDir /media/data/Daniel/data/indices \
---index "no" \
+--index "yes" \
 --data /media/data/Daniel/data/seq_files/ \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
 --fastqc /media/data/tools/FastQC/fastqc \
@@ -13,7 +13,7 @@
 --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
 --threads 8 \
 --rsemResult "genes" \
---rsemRef "no" \
+--rsemRef "yes" \
 --rsemRefDir /media/data/Daniel/data/RSEM/ref/ \
 --bamFiles "no" \
 --impute "no" \

@@ -62,7 +62,7 @@ do
       shift
       ;;
       --rsemRefDir)
-      RSEMREFDIR="$2" # specifiy directory for Rsem Reference [Default: "$RSEMDIR/ref"]
+      RSEMREFDIR="$2" # specifiy directory for Rsem Reference [Default: "$RSEMOUT/ref"]
       shift
       ;;
       --bamFiles)
@@ -134,12 +134,12 @@ fi
 TRIMDIR=$OUTPUT/trimmomatic_output
 FASTQCDIR=$OUTPUT/FastQC_output
 STARDIR=$OUTPUT/STAR_output
-RSEMDIR=$OUTPUT/RSEM_output
+RSEMOUT=$OUTPUT/RSEM_output
 BAMSINGLE=$STARDIR/SingleEnd
 BAMPAIRED=$STARDIR/PairedEnd
 MULTIQCDIR=$OUTPUT/MultiQC_output
-SEDIR="$TRIMDIR/SingleEnd"
-PEDIR="$TRIMDIR/PairedEnd"
+TRIMSEDIR="$TRIMDIR/SingleEnd"
+TRIMPEDIR="$TRIMDIR/PairedEnd"
 STARPAIREDDIR=${STARDIR}/PairedEnd
 STARSINGLEDIR=${STARDIR}/SingleEnd
 
@@ -148,7 +148,7 @@ make_dir $TRIMDIR
 make_dir $FASTQCDIR
 make_dir "${TRIMDIR}/PairedEnd"
 make_dir "${TRIMDIR}/SingleEnd"
-make_dir $RSEMDIR
+make_dir $RSEMOUT
 make_dir $OUTPUT
 make_dir $BAMPAIRED
 make_dir $BAMSINGLE
@@ -166,7 +166,7 @@ echo Trimmomatic Output Directory = "${TRIMDIR}"
 echo Genome Index available = "${GENOMEINDEX}"
 echo Indices Directory = "${INDICESDIR}"
 echo Number of Threads = "${THREADS}"
-echo RSEM Directory = "$RSEMDIR"
+echo RSEM Directory = "$RSEMOUT"
 echo STAR Directory = "${STARDIR}"
 echo FASTQC PATH = "${FASTQC}"
 echo Trimmomatic Path = "${TRIMMOMATIC}"
@@ -200,7 +200,7 @@ for FILE in $(ls $DATA); do
       if [ ! ${READ} == "1" ]; then # if there is no read2
         echo "${FILE} has no pair --> Single End Trimming"
         echo "Single End Trimming: ${FILE}"
-        FILTERED="$SEDIR/${SAMPLENAME}Filtered${FORMAT}"
+        FILTERED="$TRIMSEDIR/${SAMPLENAME}Filtered${FORMAT}"
 
         java -jar $TRIMMOMATIC \
         SE -phred33 $FILE $FILTERED \
@@ -213,19 +213,19 @@ for FILE in $(ls $DATA); do
           echo "PairedEnd Trimming: ${FILE} + ${FILE2}"
 
           java -jar $TRIMMOMATIC \
-          PE -phred33 $FILE $FILE2 -baseout "$PEDIR/${SAMPLENAME}${FORMAT}" \
+          PE -phred33 $FILE $FILE2 -baseout "$TRIMPEDIR/${SAMPLENAME}${FORMAT}" \
           -threads ${THREADS} \
           LEADING:20 TRAILING:20 MINLEN:60
 
-          PE+=($PEDIR/${SAMPLENAME}${FORMAT})
+          PE+=($TRIMPEDIR/${SAMPLENAME}${FORMAT})
           # Quality Control with FastQC
-          $FASTQC -o $FASTQCDIR -t $THREADS ${PEDIR}/${SAMPLENAME}_[12]P${FORMAT}
+          $FASTQC -o $FASTQCDIR -t $THREADS ${TRIMPEDIR}/${SAMPLENAME}_[12]P${FORMAT}
         else
           echo "${FILE2} does not exist or has a different compression state"
           echo "${FILE} is Single End"
           echo "Single End Trimming: ${FILE}"
 
-          FILTERED="$SEDIR/${SAMPLENAME}Filtered${FORMAT}"
+          FILTERED="$TRIMSEDIR/${SAMPLENAME}Filtered${FORMAT}"
           java -jar $TRIMMOMATIC \
           SE -phred33 $FILE $FILTERED \
           -threads ${THREADS} \
@@ -430,9 +430,6 @@ if [[ $ANNOZIP == 1 ]]; then
     rm $ANNOTATION
 fi
 
-RSEMOUTPUTDIR=${RSEMDIR/Output}
-make_dir RSEMOUTPUTDIR
-
 
 echo "PAIRED END FILES: ${PE_STAR[@]}"
 echo "SINGLE END FILES: ${SE_STAR[@]}"
@@ -443,7 +440,7 @@ for FILE in "${PE_STAR[@]}"; do
 
     RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
     if [[ -f ${RSEMINPUT} ]]; then
-        RSEMOUTPUTFILES+=(${RSEMOUTPUTDIR}/$(basename $FILE))
+        RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $FILE))
         echo "Quantification with RSEM: ${RSEMINPUT}"
         ${RSEM}/rsem-calculate-expression \
         --no-bam-output \
@@ -451,7 +448,7 @@ for FILE in "${PE_STAR[@]}"; do
         -p $THREADS \
         --alignments ${RSEMINPUT} \
         ${PREP_REF} \
-        ${RSEMOUTPUTDIR}/$(basename $FILE)
+        ${RSEMOUT}/$(basename $FILE)
     else
         echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
         exit
@@ -462,13 +459,13 @@ for FILE in "${SE_STAR[@]}"; do
   RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
   if [[ -f ${RSEMINPUT} ]]; then
     echo "Quantification with RSEM: ${RSEMINPUT}"
-    RSEMOUTPUTFILES+=(${RSEMOUTPUTDIR}/$(basename $FILE))
+    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $FILE))
     ${RSEM}/rsem-calculate-expression \
     --no-bam-output \
     -p $THREADS \
     --alignments ${RSEMINPUT} \
     ${PREP_REF} \
-    ${RSEMOUTPUTDIR}/$(basename $FILE)
+    ${RSEMOUT}/$(basename $FILE)
   else
     echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
     exit
