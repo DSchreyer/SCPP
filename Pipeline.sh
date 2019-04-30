@@ -307,8 +307,8 @@ for FILE in "${PE[@]}";do
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
     ZIP=${BASH_REMATCH[3]}
-    OUTPUT=$STARPAIREDDIR/$(basename $SAMPLENAME)_
-    PE_STAR+=($OUTPUT)
+    STAROUT=$STARPAIREDDIR/$(basename $SAMPLENAME)_
+    PE_STAR+=($STAROUT)
     echo SAMPLE NAME = $SAMPLENAME
     echo FORMAT = $FORMAT
     echo ZIP = $ZIP
@@ -322,7 +322,7 @@ for FILE in "${PE[@]}";do
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $READ1 $READ2 \
     --readFilesCommand bunzip2 -c \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
 
   elif [[ $ZIP == ".gz" ]]; then
@@ -331,14 +331,14 @@ for FILE in "${PE[@]}";do
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $READ1 $READ2 \
     --readFilesCommand gunzip -c \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
   elif [[ $ZIP == "" ]]; then
     echo "unzip"
     $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $READ1 $READ2 \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
   else
     echo "$READ1 and/or $READ2 has the wrong format"
@@ -353,8 +353,8 @@ for FILE in "${SE[@]}"; do
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
     ZIP=${BASH_REMATCH[3]}
-    OUTPUT=$STARSINGLEDIR/$(basename $SAMPLENAME)_
-    SE_STAR+=($OUTPUT)
+    STAROUT=$STARSINGLEDIR/$(basename $SAMPLENAME)_
+    SE_STAR+=($STAROUT)
     echo SAMPLE NAME = $SAMPLENAME
     echo FORMAT = $FORMAT
     echo ZIP = $ZIP
@@ -368,7 +368,7 @@ for FILE in "${SE[@]}"; do
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $FILE \
     --readFilesCommand bunzip2 -c \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
   elif [[ $ZIP == ".gz" ]]; then
     echo "gzipped"
@@ -376,14 +376,14 @@ for FILE in "${SE[@]}"; do
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $FILE \
     --readFilesCommand gunzip -c \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
   elif [[ $ZIP == "" ]]; then
     echo "unzip"
     $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $FILE \
-    --outFileNamePrefix $OUTPUT \
+    --outFileNamePrefix $STAROUT \
     --quantMode TranscriptomeSAM
   else
     echo "$FILE has the wrong format"
