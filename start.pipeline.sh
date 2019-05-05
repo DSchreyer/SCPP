@@ -2,8 +2,8 @@
 ./Pipeline.sh \
 --projectName "Bassoon_scRNA-seq" \
 --output /media/data/Daniel/data/Output \
---genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa.gz \
---annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf.gz \
+--genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
+--annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
 --indicesDir /media/data/Daniel/data/indices \
 --index "yes" \
 --data /media/data/Daniel/data/seq_files/ \
@@ -14,7 +14,7 @@
 --threads 8 \
 --rsemResult "genes" \
 --rsemRef "yes" \
---rsemRefDir /media/data/Daniel/data/RSEM/ref/ \
+--rsemRefDir /media/data/Daniel/data/RSEM/ref/Mus_musculus.GRCm38.96 \
 --bamFiles "no" \
 --impute "no" \
 --animal "mouse" \
