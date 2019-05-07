@@ -5,12 +5,12 @@
 --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
 --indicesDir /media/data/Daniel/data/indices \
---index "yes" \
 --data /media/data/Daniel/data/seq_files/ \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
 --fastqc /media/data/tools/FastQC/fastqc \
 --RSEM /media/data/tools/RSEM-1.3.1/ \
 --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
+--index "y" \
 --threads 8 \
 --rsemResult "genes" \
 --rsemRef "yes" \
@@ -19,7 +19,7 @@
 --impute "no" \
 --animal "mouse" \
 --sex "F" \
---condition "Bassoon Knockout" \
+--condition "Bassoon-Knockout" \
 --treatment "treatment" \
 > /media/data/Daniel/Scripts/pipeline.log.out
 
