@@ -114,7 +114,7 @@ do
       ;;
     *)
       echo -e "ERROR: \"${option}\" is an unknown option!"
-      exit
+      help_message
       ;;
   esac
   shift
@@ -402,7 +402,7 @@ if [[ $star == 0 ]]; then
         --quantMode TranscriptomeSAM
     else
       echo "$file has the wrong format"
-      exit
+      help_message
     fi
   done
 else
@@ -430,7 +430,7 @@ if [[ $RSEMREF == "no" ]]; then
         ${PREP_REF}
     else
       echo "$ANNOTATION has the wrong format. GFF and GTF Format accepted"
-      exit
+      help_message
     fi
     echo "Prepare Reference with RSEM: DONE!"
     echo "Reference Files are stored in ${PREP_REF}"
