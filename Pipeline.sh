@@ -18,7 +18,6 @@
 while [[ $# -gt 0 ]]
 do
   option="$1"
-
   case $option in
     --projectName) # Project name to generate specific file names
       PROJECT="$2"
@@ -36,7 +35,7 @@ do
       INDICESDIR="$2" # path to directory where genome indices are stored
       shift
       ;;
-    --index) # y/yes if indices is available n/no if indices need to be generated
+    --index) # "yes": indices are available, "no": generate indices 
       GENOMEINDEX="$2"
       shift
       ;;
@@ -73,23 +72,24 @@ do
       shift
       ;;
     --rsemRef)
-      RSEMREF="$2" # "no" -> prepare reference else skipped, if yes specify rsemRefDir and Prefix at --rsemRefDir
+      RSEMREF="$2" # "no": create rsemref in RSEMREFDIR,
+                   # "yes": specify ref path and prefix in --rsemRefDir
       shift
       ;;
     --rsemRefDir)
-      RSEMREFDIR="$2" # specifiy directory for Rsem Reference [Default: "$RSEMOUT/ref"]
+      RSEMREFDIR="$2" # directory for Rsem Reference [Default: "$RSEMOUT/ref"]
       shift
       ;;
     --bamFiles)
-      BAMFILES="$2" # "no" -> do alignment, yes -> specifiy bam dir for paired end reads and single end
+      BAMFILES="$2" # "no": Alignment, "yes": specify bam file directory
       shift
       ;;
     --bamSuffix)
-      BAMSUFFIX="$2" # Use Files with this suffix [e.g. "Aligned.toTranscriptome.out.bam"]
+      BAMSUFFIX="$2" # use this bam suffix ["Aligned.toTranscriptome.out.bam"]
       shift
       ;;
     --impute)
-      IMPUTE="$2" # Yes, if cell counts should be imputed to identify real dropouts
+      IMPUTE="$2" # "no": no imputation, "yes": imputation 
       shift
       ;;
     --animal) # Metadata information: used animal for scRNA-seq
@@ -100,7 +100,7 @@ do
       SEX="$2" # Metadata information: sex of the animal
       shift
       ;;
-    --condition) # Metadata information: genetic or physical condition of animal used for scRNA-seq
+    --condition) # Metadata information: genetic or physical condition
       CONDITION="$2"
       shift
       ;;
@@ -148,9 +148,13 @@ make_dir (){
 }
 
 # check, if all arguments were passed to the Pipeline
-EXPECTEDARGS=(PROJECT GENOME ANNOTATION INDICESDIR GENOMEINDEX DATA THREADS TRIMMOMATIC FASTQC STAR RSEM RSEMRESULT RSEMREF BAMFILES IMPUTE ANIMAL SEX CONDITION TREATMENT OUTPUT)
-ARGARRAY=($PROJECT $GENOME $ANNOTATION $INDICESDIR $GENOMEINDEX $DATA $THREADS $TRIMMOMATIC $FASTQC $STAR $RSEM $RSEMRESULT $RSEMREF $BAMFILES $IMPUTE $ANIMAL $SEX $CONDITION $TREATMENT $OUTPUT)
-
+EXPECTEDARGS=(PROJECT GENOME ANNOTATION INDICESDIR GENOMEINDEX DATA THREADS \
+    TRIMMOMATIC FASTQC STAR RSEM RSEMRESULT RSEMREF BAMFILES IMPUTE ANIMAL SEX \
+    CONDITION TREATMENT OUTPUT)
+ARGARRAY=($PROJECT $GENOME $ANNOTATION $INDICESDIR $GENOMEINDEX $DATA $THREADS \
+    $TRIMMOMATIC $FASTQC $STAR $RSEM $RSEMRESULT $RSEMREF $BAMFILES $IMPUTE \
+    $ANIMAL $SEX $CONDITION $TREATMENT $OUTPUT)
+    
 if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
   echo "One or multiple argument/s is/are missing!"
   help_message
@@ -186,7 +190,7 @@ if [[ $trim ==  1 ]]; then
         READ=${BASH_REMATCH[2]}
         FORMAT=${BASH_REMATCH[3]}
         echo Sample Name: $SAMPLENAME
-        if [ ! ${READ} == "1" ]; then # if there is no read2
+        if [[ ! ${READ} == "1" ]]; then # if there is no read2
           echo "${FILE} has no pair --> Single End Trimming"
           echo "Single End Trimming: ${FILE}"
           FILTERED="$TRIMSEDIR/${SAMPLENAME}Filtered${FORMAT}"
@@ -202,13 +206,16 @@ if [[ $trim ==  1 ]]; then
             echo "PairedEnd Trimming: ${FILE} + ${FILE2}"
 
             java -jar $TRIMMOMATIC \
-              PE -phred33 $FILE $FILE2 -baseout "$TRIMPEDIR/${SAMPLENAME}${FORMAT}" \
+              PE -phred33 $FILE $FILE2 \
+              -baseout "$TRIMPEDIR/${SAMPLENAME}${FORMAT}" \
               -threads ${THREADS} \
               LEADING:20 TRAILING:20 MINLEN:60
 
             PE+=($TRIMPEDIR/${SAMPLENAME}${FORMAT})
             # Quality Control with FastQC
-            $FASTQC -o $FASTQCDIR -t $THREADS ${TRIMPEDIR}/${SAMPLENAME}_[12]P${FORMAT}
+            $FASTQC -o $FASTQCDIR \
+                -t $THREADS \
+                ${TRIMPEDIR}/${SAMPLENAME}_[12]P${FORMAT}
           else
             echo "${FILE2} does not exist or has a different compression state"
             echo "${FILE} is Single End"
@@ -245,7 +252,7 @@ then
   GENOME=$(echo "${GENOME}" | sed 's/.gz$//')
 fi
 
-# ANNOZIP=0 --> annotation file is unzipped, ANNOZIP=1 --> annotation file was zipped
+# ANNOZIP=0: annotation file is unzipped, ANNOZIP=1: annotation file was zipped
 ANNOZIP=0
 # gunzip gzipped annotation file --- expects a .gtf annotation file
 if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
@@ -262,14 +269,16 @@ echo "Generate Genome Index"
 # GENOMEINDEX stores user input, if genome indices were already generated
 echo "${GENOMEINDEX}"
 if [[ ! ${GENOMEINDEX} =~ yes|y|n|no|Yes|No|Y|N|NO|YES ]]; then
-  echo "Please specify, if the STAR indices are available or need to be generated"
-  exit
+  echo "Please specify, if the STAR indices are available or not!"
+  help_message
 fi
 
-# annotation file given -> generate indices with it | no anno file given -> generate without
+  
+
+# with anno file: generate indices with it | without: generate indices without
 if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   if [[ -z ${ANNOTATION+x} ]]; then
-    echo "No annotation file. Indexing with an annotation file is higly recommended"
+    echo "No annotation file. Indexing with annotation file is recommended!"
     $STAR --runMode genomeGenerate \
       --genomeDir "${INDICESDIR}" \
       --genomeFastaFiles "${GENOME}" \
@@ -339,7 +348,7 @@ if [[ $star == 0 ]]; then
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
-    elif [[ $ZIP == "" ]]; then
+    elif [[ -z "$ZIP" ]]; then
       echo "unzip"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
@@ -352,10 +361,10 @@ if [[ $star == 0 ]]; then
   done
 
   SE_STAR=()
-  for FILE in "${SE[@]}"; do
-    echo $FILE
-    if [[ $FILE =~ ^(.*)Filtered(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
-      echo "Start Aligning $FILE to $(basename $GENOMEINDEX)"
+  for file in "${SE[@]}"; do
+    echo $file
+    if [[ $file =~ ^(.*)Filtered(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
+      echo "Start Aligning $file to $(basename $GENOMEINDEX)"
       SAMPLENAME=${BASH_REMATCH[1]}
       FORMAT=${BASH_REMATCH[2]}
       ZIP=${BASH_REMATCH[3]}
@@ -372,7 +381,7 @@ if [[ $star == 0 ]]; then
       echo "bzipped"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
-        --readFilesIn $FILE \
+        --readFilesIn $file \
         --readFilesCommand bunzip2 -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
@@ -380,19 +389,19 @@ if [[ $star == 0 ]]; then
       echo "gzipped"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
-        --readFilesIn $FILE \
+        --readFilesIn $file \
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
-    elif [[ $ZIP == "" ]]; then
+    elif [[ -z "$ZIP" ]]; then
       echo "unzip"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
-        --readFilesIn $FILE \
+        --readFilesIn $file \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
     else
-      echo "$FILE has the wrong format"
+      echo "$file has the wrong format"
       exit
     fi
   done
@@ -442,11 +451,11 @@ echo "PAIRED END FILES: ${PE_STAR[@]}"
 echo "SINGLE END FILES: ${SE_STAR[@]}"
 
 RSEMOUTPUTFILES=()
-for FILE in "${PE_STAR[@]}"; do
-  echo $FILE
-  RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
+for file in "${PE_STAR[@]}"; do
+  echo $file
+  RSEMINPUT=${file}Aligned.toTranscriptome.out.bam
   if [[ -f ${RSEMINPUT} ]]; then
-    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $FILE))
+    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
     echo "Quantification with RSEM: ${RSEMINPUT}"
     ${RSEM}/rsem-calculate-expression \
       --no-bam-output \
@@ -454,7 +463,7 @@ for FILE in "${PE_STAR[@]}"; do
       -p $THREADS \
       --alignments ${RSEMINPUT} \
       ${PREP_REF} \
-      ${RSEMOUT}/$(basename $FILE)
+      ${RSEMOUT}/$(basename $file)
   else
     echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
     exit
@@ -465,13 +474,13 @@ for FILE in "${SE_STAR[@]}"; do
   RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
   if [[ -f ${RSEMINPUT} ]]; then
     echo "Quantification with RSEM: ${RSEMINPUT}"
-    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $FILE))
+    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
     ${RSEM}/rsem-calculate-expression \
       --no-bam-output \
       -p $THREADS \
       --alignments ${RSEMINPUT} \
       ${PREP_REF} \
-      ${RSEMOUT}/$(basename $FILE)
+      ${RSEMOUT}/$(basename $file)
   else
     echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
     exit
@@ -488,15 +497,18 @@ GENEINF="${OUTPUT}/${PROJECT}.gene.information.txt"
 TEMP="${OUTPUT}/${PROJECT}.cells.counts.temp.txt"
 
 i=0
-for FILE in "${RSEMOUTPUTFILES[@]}"; do
-  echo "Generate Metadata file for $FILE"
-  CELL=$(basename $FILE)
-  RSEMOUTPUT="${FILE}.${RSEMRESULT}.results"
+for file in "${RSEMOUTPUTFILES[@]}"; do
+  echo "Generate Metadata file for $file"
+  CELL=$(basename $file)
+  RSEMOUTPUT="${file}.${RSEMRESULT}.results"
   if [[ $i == 0 ]]; then
     if [[ ! -f ${CELLCOUNTS} ]]; then
-      awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT > "${CELLCOUNTS}"
+      awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT \
+        > "${CELLCOUNTS}"
     else
-      paste $CELLCOUNTS <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > ${TEMP}
+      paste $CELLCOUNTS \
+        <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) \
+        > ${TEMP}
       cat ${TEMP} > ${CELLCOUNTS}
       rm ${TEMP}
     fi
@@ -506,11 +518,15 @@ for FILE in "${RSEMOUTPUTFILES[@]}"; do
     if [[ ! -f $METADATA ]]; then
       echo -e "cell\tanimal\tsex\tcondition\ttreatment" > ${METADATA}
     fi
-    echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> "${METADATA}"
+    echo -e "$(basename $file)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" \
+      >> "${METADATA}"
     i=1
   else
-    echo -e "$(basename $FILE)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" >> ${METADATA}
-    paste $CELLCOUNTS <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) > $TEMP
+    echo -e "$(basename $file)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" \
+      >> ${METADATA}
+    paste $CELLCOUNTS \
+      <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) \
+      > $TEMP
     cat $TEMP > $CELLCOUNTS
     rm $TEMP
   fi
@@ -518,13 +534,13 @@ done
 
 # If imputation is requested: Perform imputation on the raw count table
 if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
-  echo "Perform imputation with scImpute before normalization, to reduce dropouts"
+  echo "Perform imputation with scImpute to reduce dropouts."
   if [[ -z ${IMPUTOUT+x} ]]; then
     DIR=$(dirname "${CELLCOUNTS}")
     BASE=$(basename "${CELLCOUNTS}")
     IMPOUTPUT=$DIR/imputed.$BASE
   fi
-  echo "Perform imputation on raw count table ${CELLCOUNTS} and save it in $IMPOUTPUT"
+  echo "Perform imputation on count table ${CELLCOUNTS}: Store in $IMPOUTPUT."
   ./impute_counts.R $CELLCOUNTS $IMPOUTPUT
 fi
 
