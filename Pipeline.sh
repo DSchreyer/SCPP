@@ -181,8 +181,8 @@ $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 # skip trimming if trim == 1
 trim=1
 if [[ $trim ==  1 ]]; then
-  for FILE in $(ls $DATA); do
-    FILE="$DATA/$FILE"
+  for file in $(ls $DATA); do
+    FILE="$DATA/$file"
     if [[ $FILE =~ .*\.fq.*|.*\.fastq.* ]]; then
       if [[ $FILE =~ ^.*/(.*)(1)(\.f[a-z]*.*)$|^.*/(.*)([^2])(\.f[a-z]*.*)$ ]]
       then
@@ -273,8 +273,6 @@ if [[ ! ${GENOMEINDEX} =~ yes|y|n|no|Yes|No|Y|N|NO|YES ]]; then
   help_message
 fi
 
-  
-
 # with anno file: generate indices with it | without: generate indices without
 if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   if [[ -z ${ANNOTATION+x} ]]; then
@@ -309,7 +307,6 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   fi
   echo "Stored genome indices in ${INDICESDIR}"
 fi
-
 
 # skip star alignment
 star=0
@@ -446,10 +443,10 @@ if [[ $ANNOZIP == 1 ]]; then
   rm $ANNOTATION
 fi
 
-
 echo "PAIRED END FILES: ${PE_STAR[@]}"
 echo "SINGLE END FILES: ${SE_STAR[@]}"
 
+# Quantification step with RSEM function: rsem-calculate-expression
 RSEMOUTPUTFILES=()
 for file in "${PE_STAR[@]}"; do
   echo $file
@@ -541,7 +538,7 @@ if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
     IMPOUTPUT=$DIR/imputed.$BASE
   fi
   echo "Perform imputation on count table ${CELLCOUNTS}: Store in $IMPOUTPUT."
-  ./impute_counts.R $CELLCOUNTS $IMPOUTPUT
+  Rscript impute_counts.R $CELLCOUNTS $IMPOUTPUT
 fi
 
 # shell script finished -- start R Pipeline
@@ -551,6 +548,6 @@ fi
 echo "Generated count table. Stored in ${CELLCOUNTS}."
 echo "Generated metadata file. Stored in ${METADATA}."
 echo "Start Quality Control and Normalization with scater and scran in R!"
-./R_pipeline.R $CELLCOUNTS $METADATA
+Rscript R_pipeline.R $CELLCOUNTS $METADATA
 
 
