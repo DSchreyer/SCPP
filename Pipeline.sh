@@ -96,8 +96,8 @@ do
       ANIMAL="$2"
       shift
       ;;
-    --sex)
-      SEX="$2" # Metadata information: sex of the animal
+    --sex) # Metadata information: sex of the animal
+      SEX="$2" 
       shift
       ;;
     --condition) # Metadata information: genetic or physical condition
@@ -217,7 +217,7 @@ if [[ $trim ==  1 ]]; then
                 -t $THREADS \
                 ${TRIMPEDIR}/${SAMPLENAME}_[12]P${FORMAT}
           else
-            echo "${FILE2} does not exist or has a different compression state"
+            echo "${FILE2} does not exist or has a different compression state."
             echo "${FILE} is Single End"
             echo "Single End Trimming: ${FILE}"
 
@@ -313,9 +313,9 @@ star=0
 if [[ $star == 0 ]]; then
   # align only paired reads with STAR -- 1P and 2P extension
   PE_STAR=()
-  for FILE in "${PE[@]}";do
+  for file in "${PE[@]}";do
     echo "Start aligning $FILE with STAR"
-    if [[ $FILE =~ ^(.*)(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
+    if [[ $file =~ ^(.*)(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
       SAMPLENAME=${BASH_REMATCH[1]}
       FORMAT=${BASH_REMATCH[2]}
       ZIP=${BASH_REMATCH[3]}
@@ -467,8 +467,8 @@ for file in "${PE_STAR[@]}"; do
   fi
 done
 
-for FILE in "${SE_STAR[@]}"; do
-  RSEMINPUT=${FILE}Aligned.toTranscriptome.out.bam
+for file in "${SE_STAR[@]}"; do
+  RSEMINPUT=${file}Aligned.toTranscriptome.out.bam
   if [[ -f ${RSEMINPUT} ]]; then
     echo "Quantification with RSEM: ${RSEMINPUT}"
     RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
