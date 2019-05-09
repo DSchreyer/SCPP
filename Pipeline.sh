@@ -181,7 +181,7 @@ $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 # skip trimming if trim == 1
 trim=1
 if [[ $trim ==  1 ]]; then
-  for file in $(ls $DATA); do
+  for file in $FILES; do
     FILE="$DATA/$file"
     if [[ $FILE =~ .*\.fq.*|.*\.fastq.* ]]; then
       if [[ $FILE =~ ^.*/(.*)(1)(\.f[a-z]*.*)$|^.*/(.*)([^2])(\.f[a-z]*.*)$ ]]
@@ -486,6 +486,10 @@ done
 
 # cells.counts.txt, cells.metadata.txt, gene.information.txt
 
+
+
+
+exit
 echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
 
 METADATA="${OUTPUT}/${PROJECT}.cells.metadata.txt"
