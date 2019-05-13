@@ -1,7 +1,7 @@
 #!/bin/bash
 ./Pipeline.sh \
 --projectName "data_test" \
---output /media/data/Daniel/data/Output \
+--output /media/data/Daniel/data/brandstaetter/Output \
 --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
 --indicesDir /media/data/Daniel/data/indices \

@@ -9,7 +9,8 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-
+# TODO: Gunzipped files make problem! Unzip first or zip trimmed files again...
+# TODO: STAR can handle gunzipped files
 # TODO: Cell Barcode and UMI removal after mapping
 # TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
 # TODO: adjust trimming and mapping
