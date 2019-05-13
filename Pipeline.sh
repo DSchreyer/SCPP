@@ -2,7 +2,7 @@
 #
 # Daniel Schreyer
 # Single Cell Analysis Pipeline
-# Input: Single cell data
+# Input: 10x single cell data
 # Output:   1. Cell count table
 #           2. Metadata file
 #           3. Differentially expressed genes
@@ -10,10 +10,25 @@
 #           5. Marker genes for sequenced cell types
 
 
-# TODO: Imputation R code
+# TODO: Ask, which read is the read to map
+# TODO: Cell Barcode and UMI removal after mapping
+# TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
+# TODO: adjust trimming and mapping
 # TODO: Demultiplexing integration
 # TODO: change sequencing file input -> run pipeline only one time
 # TODO: Start R-script from pipeline
+
+##########################
+# print out help message, if an error occured
+# Arguments: 
+#   None
+# Returns:
+#   exit program
+##########################
+help_message(){
+  echo "Define Arguments in start.pipeline.sh"
+  exit
+}
 
 while [[ $# -gt 0 ]]
 do
@@ -41,6 +56,14 @@ do
       ;;
     --data)  # path to data directory with read files
       DATA="$2"
+      shift
+      ;;
+    --read)
+      READ="$2"
+      shift
+      ;;
+    --barcode)
+      BARCODE="$2"
       shift
       ;;
     --threads) # how many threads are available
@@ -120,17 +143,6 @@ do
   shift
 done
 
-##########################
-# print out help message, if an error occured
-# Arguments: 
-#   None
-# Returns:
-#   exit program
-##########################
-help_message(){
-  echo "Define Arguments in start.pipeline.sh"
-  exit
-}
 # creates directory, if it does not exist
 ##########################
 # creates missing directory 
@@ -160,6 +172,35 @@ if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
   help_message
 fi
 
+# create directories for essential outputs  # print directory paths
+TRIMDIR=$OUTPUT/trimmomatic_output 
+FASTQCDIR=$OUTPUT/FastQC_output    
+STARDIR=$OUTPUT/STAR_output    
+RSEMOUT=$OUTPUT/RSEM_output    
+BAMSINGLE=$STARDIR/SingleEnd   
+BAMPAIRED=$STARDIR/PairedEnd   
+MULTIQCDIR=$OUTPUT/MultiQC_output  
+TRIMSEDIR="$TRIMDIR/SingleEnd" 
+TRIMPEDIR="$TRIMDIR/PairedEnd" 
+STARPAIREDDIR=${STARDIR}/PairedEnd 
+STARSINGLEDIR=${STARDIR}/SingleEnd 
+
+make_dir $OUTPUT  
+make_dir $TRIMDIR 
+make_dir $FASTQCDIR   
+make_dir "${TRIMDIR}/PairedEnd"   
+make_dir "${TRIMDIR}/SingleEnd"   
+make_dir $RSEMOUT 
+make_dir $OUTPUT  
+make_dir $BAMPAIRED   
+make_dir $BAMSINGLE   
+make_dir $INDICESDIR  
+make_dir $STARDIR 
+make_dir "${STARDIR}/SingleEnd"   
+make_dir "${STARDIR}/PairedEnd"   
+make_dir $RSEMREFDIR
+
+
 # print directory paths
 echo STAR Directory = "${STARDIR}"
 echo FASTQC PATH = "${FASTQC}"
@@ -172,16 +213,57 @@ echo Use calculated expression of "${RSEMRESULT}"
 echo BAM Files = "$BAMFILES"
 echo Directory for paired end BAM files = "$BAMPAIRED"
 echo Directory for single end BAM files = "$BAMSINGLE"
+echo Sequencing Read = $READ
+echo Barcode and Umi Read = $BARCODE
 
-# Quality Control with all files in the data Directory --- FastQC
 FILES=($(ls -d $DATA/*))
-echo "Quality Control of all files in ${DATA}"
+date
+# Quality Control with all files in the data Directory --- FastQC
+echo "Performe quality control"
+echo "Quality Control of ${FILES[@]}"
 $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
+echo "Performed quality control"
+
+# Trimming 10x data - 1 Read file and 1 Barcode file
+SE=()
+TRIMBARCODES=()
+for file in ${FILES[@]}; do
+  echo file = $file
+  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq)$ ]]; then
+    echo "$file is sequencing read!"
+    dir=${BASH_REMATCH[1]}
+    SAMPLENAME=${BASH_REMATCH[2]}
+    FORMAT=${BASH_REMATCH[3]}
+    FILE=$dir/$file
+    FILTERED=$dir/${SAMPLENAME}_trim_${READ}_001.${FORMAT}
+
+    java -jar $TRIMMOMATIC \
+      SE -phred33 $FILE $FILTERED \
+      -threads ${THREADS} \
+      LEADING:20 TRAILING:20 MINLEN:60
+    SE+=($FILTERED) 
+    
+  elif [[ $file =~ (.*)_${BARCODE}_001\.(fastq|fq) ]]; then
+    echo "$file is barcode and umi read!"
+    SAMPLENAME=${BASH_REMATCH[1]}
+    FORMAT=${BASH_REMATCH[2]}
+    FILE=$DATA/$file
+    FILTERED=$DATA/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}
+
+    java -jar $TRIMMOMATIC \
+      SE -phred33 $FILE $FILTERED \
+      -threads ${THREADS} \
+      LEADING:20 TRAILING:20 MINLEN:26
+    TRIMBARCODES+=($FILTERED) 
+  else
+    echo "$file was not trimmed!"
+  fi
+done
 
 # skip trimming if trim == 1
-trim=1
+trim=0
 if [[ $trim ==  1 ]]; then
-  for file in $FILES; do
+  for file in ${FILES[@]}; do
     FILE="$DATA/$file"
     if [[ $FILE =~ .*\.fq.*|.*\.fastq.* ]]; then
       if [[ $FILE =~ ^.*/(.*)(1)(\.f[a-z]*.*)$|^.*/(.*)([^2])(\.f[a-z]*.*)$ ]]
@@ -243,7 +325,9 @@ $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 
 echo "SINGLE END: ${SE[@]}"
 echo "PAIRED END: ${PE[@]}"
-
+echo "Trimmed Barcodes: ${TRIMBARCODES[@]}"
+date
+exit
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
 then
