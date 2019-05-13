@@ -1,11 +1,13 @@
 #!/bin/bash
 ./Pipeline.sh \
---projectName "Bassoon_scRNA-seq" \
+--projectName "data_test" \
 --output /media/data/Daniel/data/Output \
 --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
 --indicesDir /media/data/Daniel/data/indices \
---data /media/data/Daniel/data/seq_files/ \
+--data /media/data/Daniel/data/test_10x_data/ \
+--read "R2" \
+--barcode "R1" \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
 --fastqc /media/data/tools/FastQC/fastqc \
 --RSEM /media/data/tools/RSEM-1.3.1/ \
