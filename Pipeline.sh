@@ -10,7 +10,6 @@
 #           5. Marker genes for sequenced cell types
 
 
-# TODO: Ask, which read is the read to map
 # TODO: Cell Barcode and UMI removal after mapping
 # TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
 # TODO: adjust trimming and mapping
@@ -234,26 +233,24 @@ for file in ${FILES[@]}; do
     dir=${BASH_REMATCH[1]}
     SAMPLENAME=${BASH_REMATCH[2]}
     FORMAT=${BASH_REMATCH[3]}
-    FILE=$dir/$file
-    FILTERED=$dir/${SAMPLENAME}_trim_${READ}_001.${FORMAT}
+    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${READ}_001.${FORMAT}
 
     java -jar $TRIMMOMATIC \
-      SE -phred33 $FILE $FILTERED \
+      SE -phred33 $file $FILTERED \
       -threads ${THREADS} \
-      LEADING:20 TRAILING:20 MINLEN:60
+      LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
     SE+=($FILTERED) 
     
-  elif [[ $file =~ (.*)_${BARCODE}_001\.(fastq|fq) ]]; then
+  elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq) ]]; then
     echo "$file is barcode and umi read!"
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
-    FILE=$DATA/$file
-    FILTERED=$DATA/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}
+    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}
 
     java -jar $TRIMMOMATIC \
-      SE -phred33 $FILE $FILTERED \
+      SE -phred33 $file $FILTERED \
       -threads ${THREADS} \
-      LEADING:20 TRAILING:20 MINLEN:26
+      LEADING:20 TRAILING:20 MINLEN:26 SLIDINGWINDOW:4:20
     TRIMBARCODES+=($FILTERED) 
   else
     echo "$file was not trimmed!"
@@ -280,7 +277,7 @@ if [[ $trim ==  1 ]]; then
           java -jar $TRIMMOMATIC \
             SE -phred33 $FILE $FILTERED \
             -threads ${THREADS} \
-            LEADING:20 TRAILING:20 MINLEN:60
+            LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
           SE+=($FILTERED)
         else
           FILE2="${DATA}/${SAMPLENAME}2${FORMAT}"
@@ -291,7 +288,7 @@ if [[ $trim ==  1 ]]; then
               PE -phred33 $FILE $FILE2 \
               -baseout "$TRIMPEDIR/${SAMPLENAME}${FORMAT}" \
               -threads ${THREADS} \
-              LEADING:20 TRAILING:20 MINLEN:60
+              LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
 
             PE+=($TRIMPEDIR/${SAMPLENAME}${FORMAT})
             # Quality Control with FastQC
@@ -307,7 +304,7 @@ if [[ $trim ==  1 ]]; then
             java -jar $TRIMMOMATIC \
               SE -phred33 $FILE $FILTERED \
               -threads ${THREADS} \
-              LEADING:20 TRAILING:20 MINLEN:60
+              LEADING:20 TRAILING:20 MINLEN:50
 
             SE+=(${FILTERED})
           fi
@@ -322,12 +319,13 @@ fi
 # Quality Control of trimmed single end files with FastQC
 echo "Quality Control of trimmed single end files"
 $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
-
+$FASTQC -o $FASTQCDIR -t $THREADS ${TRIMBARCODES[@]}
 echo "SINGLE END: ${SE[@]}"
 echo "PAIRED END: ${PE[@]}"
 echo "Trimmed Barcodes: ${TRIMBARCODES[@]}"
+echo "Finished Trimming"
 date
-exit
+
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
 then
@@ -344,6 +342,8 @@ if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
   gunzip --keep "${ANNOTATION}"
   ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
   ANNOZIP=1
+  echo "Finished unzipping annotation file"
+  date
 fi
 
 
@@ -390,6 +390,8 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
     fi
   fi
   echo "Stored genome indices in ${INDICESDIR}"
+  echo "Finished generating STAR indices!"
+  date
 fi
 
 # skip star alignment
@@ -429,7 +431,7 @@ if [[ $star == 0 ]]; then
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
-    elif [[ -z "$ZIP" ]]; then
+    elif [[ $ZIP == "" ]]; then
       echo "unzip"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
@@ -444,16 +446,16 @@ if [[ $star == 0 ]]; then
   SE_STAR=()
   for file in "${SE[@]}"; do
     echo $file
-    if [[ $file =~ ^(.*)Filtered(\.f[a-z]*)(\.gz|\.bz2)?$ ]]; then
-      echo "Start Aligning $file to $(basename $GENOMEINDEX)"
+    if [[ $file =~ ^.*/(.*)\.(fastq|fq)(\.gz|\.bz2)?$ ]]; then
+      echo "Start STAR alignment with $file!"
       SAMPLENAME=${BASH_REMATCH[1]}
       FORMAT=${BASH_REMATCH[2]}
       ZIP=${BASH_REMATCH[3]}
-      STAROUT=$STARSINGLEDIR/$(basename $SAMPLENAME)_
-      SE_STAR+=($STAROUT)
-      echo SAMPLE NAME = $SAMPLENAME
-      echo FORMAT = $FORMAT
+      echo SampleName = $SAMPLENAME
+      echo Format = $FORMAT
       echo ZIP = $ZIP
+      STAROUT=$STARSINGLEDIR/$SAMPLENAME
+      SE_STAR+=($STAROUT)
     else
       echo "$FILE has the wrong format or does not exist"
       exit
@@ -474,7 +476,7 @@ if [[ $star == 0 ]]; then
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
-    elif [[ -z "$ZIP" ]]; then
+    elif [[ $ZIP == "" ]]; then
       echo "unzip"
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
@@ -489,7 +491,12 @@ if [[ $star == 0 ]]; then
 else
   echo "Skipped STAR Alignment"
 fi
+echo "Finished STAR Alignment!"
+date
+echo "Pipeline done!"
+exit
 echo "Quantification with RSEM"
+
 
 # create RSEM reference
 if [[ $RSEMREF == "no" ]]; then
@@ -516,6 +523,8 @@ if [[ $RSEMREF == "no" ]]; then
     echo "Prepare Reference with RSEM: DONE!"
     echo "Reference Files are stored in ${PREP_REF}"
   fi
+  echo "Finished generating RSEM reference!"
+  date
 else
   echo "Skipped preparing reference with RSEM"
   PREP_REF=${RSEMREFDIR}
