@@ -9,8 +9,7 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: Gunzipped files make problem! Unzip first or zip trimmed files again...
-# TODO: STAR can handle gunzipped files
+# TODO: STAR can handle gzipped files
 # TODO: Cell Barcode and UMI removal after mapping
 # TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
 # TODO: adjust trimming and mapping
@@ -216,10 +215,41 @@ echo Directory for single end BAM files = "$BAMSINGLE"
 echo Sequencing Read = $READ
 echo Barcode and Umi Read = $BARCODE
 
-FILES=($(ls -d $DATA/*))
+FILES=$(ls -d $DATA/*)
+# COMFILES=()
+# SEQFILES=($(ls -d $DATA/*))
+# # check compression state of all files
+# for file in ${SEQFILES[@]}; do
+#   if [[ $file =~ ^(.*)/(.*)\.(fastq|fq)(\.gz)$ ]]; then
+#     FILE=$(basename $file)
+#     dir=${BASH_REMATCH[1]}
+#     sample=${BASH_REMATCH[2]}
+#     format=${BASH_REMATCH[3]}
+#     zip=${BASH_REMATCH[4]}
+#     echo dir = $dir
+#     echo sample = $sample
+#     echo format = $format
+#     echo zip = $zip
+#     echo gunzip $file
+#     gunzip --keep $file
+#     FILES+=($dir.$sample.$format)
+#     COMFILES+=($dir.sample.$format)
+#   elif [[ $file =~ ^(.*)/(.*)\.(fastq|fq)$ ]]; then
+#     echo "$file is not compressed!"
+#     FILES+=($file)
+#   else
+#     echo "$file is no fastq file!"
+#   fi
+# done
+# echo FILES = ${FILES[@]}
+# echo COMFILES = ${COMFILES[@]}
+# 
+# 
+# exit
+ 
 date
 # Quality Control with all files in the data Directory --- FastQC
-echo "Performe quality control"
+echo "Perform quality control"
 echo "Quality Control of ${FILES[@]}"
 $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 echo "Performed quality control"
@@ -229,7 +259,7 @@ SE=()
 TRIMBARCODES=()
 for file in ${FILES[@]}; do
   echo file = $file
-  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq)$ ]]; then
+  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq) ]]; then
     echo "$file is sequencing read!"
     dir=${BASH_REMATCH[1]}
     SAMPLENAME=${BASH_REMATCH[2]}
@@ -458,7 +488,7 @@ if [[ $star == 0 ]]; then
       STAROUT=$STARSINGLEDIR/$SAMPLENAME
       SE_STAR+=($STAROUT)
     else
-      echo "$FILE has the wrong format or does not exist"
+      echo "$file has the wrong format or does not exist"
       exit
     fi
     if [[ $ZIP == ".bz2" ]]; then
