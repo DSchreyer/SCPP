@@ -485,7 +485,7 @@ if [[ $star == 0 ]]; then
       echo SampleName = $SAMPLENAME
       echo Format = $FORMAT
       echo ZIP = $ZIP
-      STAROUT=$STARSINGLEDIR/$SAMPLENAME
+      STAROUT=$STARSINGLEDIR/$SAMPLENAME_
       SE_STAR+=($STAROUT)
     else
       echo "$file has the wrong format or does not exist"
