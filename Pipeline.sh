@@ -228,12 +228,12 @@ SE=()
 TRIMBARCODES=()
 for file in ${FILES[@]}; do
   echo file = $file
-  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+  if [[ $file =~ ^.*/(.*)_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is sequencing read!"
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
     ZIP=${BASH_REMATCH[3]}
-    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${READ}_001.${FORMAT}${ZIP}
+    FILTERED="${TRIMSEDIR}/${SAMPLENAME}_trim_${READ}_001.${FORMAT}${ZIP}"
     echo "Perform trimming with $file"
     date
     java -jar $TRIMMOMATIC \
@@ -244,22 +244,22 @@ for file in ${FILES[@]}; do
     date
     SE+=($FILTERED) 
     
-  elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-    echo "$file is barcode and umi read!"
-    echo "Perform trimming with $file!"
-    date
-    SAMPLENAME=${BASH_REMATCH[1]}
-    FORMAT=${BASH_REMATCH[2]}
-    ZIP=${BASH_REMATCH[3]}
-    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}${ZIP}
+  # elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+  #   echo "$file is barcode and umi read!"
+  #   echo "Perform trimming with $file!"
+  #   date
+  #   SAMPLENAME=${BASH_REMATCH[1]}
+  #   FORMAT=${BASH_REMATCH[2]}
+  #   ZIP=${BASH_REMATCH[3]}
+  #   FILTERED="${TRIMSEDIR}/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}${ZIP}"
 
-    java -jar $TRIMMOMATIC \
-      SE -phred33 $file $FILTERED \
-      -threads ${THREADS} \
-      LEADING:20 TRAILING:20 MINLEN:26 SLIDINGWINDOW:4:20
-    echo "Trimmed file saved as $FILTERED"
-    date
-    TRIMBARCODES+=($FILTERED) 
+  #   java -jar $TRIMMOMATIC \
+  #     SE -phred33 $file $FILTERED \
+  #     -threads ${THREADS} \
+  #     LEADING:20 TRAILING:20 MINLEN:26 SLIDINGWINDOW:4:20
+  #   echo "Trimmed file saved as $FILTERED"
+  #   date
+  #   TRIMBARCODES+=($FILTERED) 
   else
     echo "$file was not trimmed!"
   fi
@@ -519,7 +519,6 @@ for file in "${SE_STAR[@]}"; do
     echo "Quantification with RSEM: ${RSEMINPUT}"
     RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
     ${RSEM}/rsem-calculate-expression \
-      --no-bam-output \
       -p $THREADS \
       --alignments ${RSEMINPUT} \
       ${PREP_REF} \
@@ -531,8 +530,6 @@ for file in "${SE_STAR[@]}"; do
 done
 
 # cells.counts.txt, cells.metadata.txt, gene.information.txt
-
-
 
 
 exit
