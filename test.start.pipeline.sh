@@ -26,7 +26,6 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --condition "Bassoon-Knockout" \
     --treatment "treatment" \
     > /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
-  exit
 done
 
 # For every single cell sample create one directory with the sequencing files
