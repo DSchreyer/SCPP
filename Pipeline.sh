@@ -184,7 +184,7 @@ TRIMPEDIR="$TRIMDIR/PairedEnd"
 STARPAIREDDIR=${STARDIR}/PairedEnd 
 STARSINGLEDIR=${STARDIR}/SingleEnd 
 
-make_dir $OUTPUT  
+make_dir $OUTPUT 
 make_dir $TRIMDIR 
 make_dir $FASTQCDIR   
 make_dir "${TRIMDIR}/PairedEnd"   
@@ -216,42 +216,11 @@ echo Sequencing Read = $READ
 echo Barcode and Umi Read = $BARCODE
 
 FILES=$(ls -d $DATA/*)
-# COMFILES=()
-# SEQFILES=($(ls -d $DATA/*))
-# # check compression state of all files
-# for file in ${SEQFILES[@]}; do
-#   if [[ $file =~ ^(.*)/(.*)\.(fastq|fq)(\.gz)$ ]]; then
-#     FILE=$(basename $file)
-#     dir=${BASH_REMATCH[1]}
-#     sample=${BASH_REMATCH[2]}
-#     format=${BASH_REMATCH[3]}
-#     zip=${BASH_REMATCH[4]}
-#     echo dir = $dir
-#     echo sample = $sample
-#     echo format = $format
-#     echo zip = $zip
-#     echo gunzip $file
-#     gunzip --keep $file
-#     FILES+=($dir.$sample.$format)
-#     COMFILES+=($dir.sample.$format)
-#   elif [[ $file =~ ^(.*)/(.*)\.(fastq|fq)$ ]]; then
-#     echo "$file is not compressed!"
-#     FILES+=($file)
-#   else
-#     echo "$file is no fastq file!"
-#   fi
-# done
-# echo FILES = ${FILES[@]}
-# echo COMFILES = ${COMFILES[@]}
-# 
-# 
-# exit
- 
 date
 # Quality Control with all files in the data Directory --- FastQC
 echo "Perform quality control"
 echo "Quality Control of ${FILES[@]}"
-$FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
+# $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 echo "Performed quality control"
 
 # Trimming 10x data - 1 Read file and 1 Barcode file
@@ -259,98 +228,47 @@ SE=()
 TRIMBARCODES=()
 for file in ${FILES[@]}; do
   echo file = $file
-  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq) ]]; then
+  if [[ $file =~ ^(.*)/(.*)_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is sequencing read!"
-    dir=${BASH_REMATCH[1]}
-    SAMPLENAME=${BASH_REMATCH[2]}
-    FORMAT=${BASH_REMATCH[3]}
-    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${READ}_001.${FORMAT}
-
+    SAMPLENAME=${BASH_REMATCH[1]}
+    FORMAT=${BASH_REMATCH[2]}
+    ZIP=${BASH_REMATCH[3]}
+    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${READ}_001.${FORMAT}${ZIP}
+    echo "Perform trimming with $file"
+    date
     java -jar $TRIMMOMATIC \
       SE -phred33 $file $FILTERED \
       -threads ${THREADS} \
       LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
+    echo "Trimmed filed saved as $FILTERED"
+    date
     SE+=($FILTERED) 
     
-  elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq) ]]; then
+  elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is barcode and umi read!"
+    echo "Perform trimming with $file!"
+    date
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
-    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}
+    ZIP=${BASH_REMATCH[3]}
+    FILTERED=$TRIMSEDIR/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}${ZIP}
 
     java -jar $TRIMMOMATIC \
       SE -phred33 $file $FILTERED \
       -threads ${THREADS} \
       LEADING:20 TRAILING:20 MINLEN:26 SLIDINGWINDOW:4:20
+    echo "Trimmed file saved as $FILTERED"
+    date
     TRIMBARCODES+=($FILTERED) 
   else
     echo "$file was not trimmed!"
   fi
 done
 
-# skip trimming if trim == 1
-trim=0
-if [[ $trim ==  1 ]]; then
-  for file in ${FILES[@]}; do
-    FILE="$DATA/$file"
-    if [[ $FILE =~ .*\.fq.*|.*\.fastq.* ]]; then
-      if [[ $FILE =~ ^.*/(.*)(1)(\.f[a-z]*.*)$|^.*/(.*)([^2])(\.f[a-z]*.*)$ ]]
-      then
-        SAMPLENAME=${BASH_REMATCH[1]}
-        READ=${BASH_REMATCH[2]}
-        FORMAT=${BASH_REMATCH[3]}
-        echo Sample Name: $SAMPLENAME
-        if [[ ! ${READ} == "1" ]]; then # if there is no read2
-          echo "${FILE} has no pair --> Single End Trimming"
-          echo "Single End Trimming: ${FILE}"
-          FILTERED="$TRIMSEDIR/${SAMPLENAME}Filtered${FORMAT}"
-
-          java -jar $TRIMMOMATIC \
-            SE -phred33 $FILE $FILTERED \
-            -threads ${THREADS} \
-            LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
-          SE+=($FILTERED)
-        else
-          FILE2="${DATA}/${SAMPLENAME}2${FORMAT}"
-          if [[ -f $FILE2 ]]; then
-            echo "PairedEnd Trimming: ${FILE} + ${FILE2}"
-
-            java -jar $TRIMMOMATIC \
-              PE -phred33 $FILE $FILE2 \
-              -baseout "$TRIMPEDIR/${SAMPLENAME}${FORMAT}" \
-              -threads ${THREADS} \
-              LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:20
-
-            PE+=($TRIMPEDIR/${SAMPLENAME}${FORMAT})
-            # Quality Control with FastQC
-            $FASTQC -o $FASTQCDIR \
-                -t $THREADS \
-                ${TRIMPEDIR}/${SAMPLENAME}_[12]P${FORMAT}
-          else
-            echo "${FILE2} does not exist or has a different compression state."
-            echo "${FILE} is Single End"
-            echo "Single End Trimming: ${FILE}"
-
-            FILTERED="$TRIMSEDIR/${SAMPLENAME}Filtered${FORMAT}"
-            java -jar $TRIMMOMATIC \
-              SE -phred33 $FILE $FILTERED \
-              -threads ${THREADS} \
-              LEADING:20 TRAILING:20 MINLEN:50
-
-            SE+=(${FILTERED})
-          fi
-        fi
-      fi
-    fi
-  done
-else
-  echo "Skipped trimming with Trimmomatic"
-fi
-
 # Quality Control of trimmed single end files with FastQC
 echo "Quality Control of trimmed single end files"
-$FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
-$FASTQC -o $FASTQCDIR -t $THREADS ${TRIMBARCODES[@]}
+# $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
+# $FASTQC -o $FASTQCDIR -t $THREADS ${TRIMBARCODES[@]}
 echo "SINGLE END: ${SE[@]}"
 echo "PAIRED END: ${PE[@]}"
 echo "Trimmed Barcodes: ${TRIMBARCODES[@]}"
@@ -485,7 +403,8 @@ if [[ $star == 0 ]]; then
       echo SampleName = $SAMPLENAME
       echo Format = $FORMAT
       echo ZIP = $ZIP
-      STAROUT=$STARSINGLEDIR/$SAMPLENAME_
+      STAROUT=$STARSINGLEDIR/${SAMPLENAME}_
+      echo "STAR Output = $STAROUT"
       SE_STAR+=($STAROUT)
     else
       echo "$file has the wrong format or does not exist"
@@ -499,6 +418,7 @@ if [[ $star == 0 ]]; then
         --readFilesCommand bunzip2 -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
+      echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == ".gz" ]]; then
       echo "gzipped"
       $STAR --runThreadN $THREADS \
@@ -507,6 +427,7 @@ if [[ $star == 0 ]]; then
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
+      echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == "" ]]; then
       echo "unzip"
       $STAR --runThreadN $THREADS \
@@ -514,6 +435,7 @@ if [[ $star == 0 ]]; then
         --readFilesIn $file \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
+      echo "Saved STAR output of $file in $STAROUT"
     else
       echo "$file has the wrong format"
       help_message
