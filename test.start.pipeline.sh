@@ -1,30 +1,32 @@
 #!/bin/bash
 for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
-./Pipeline.sh \
---projectName "data_test" \
---output /media/data/Daniel/data/brandstaetter/Output/$dir \
---genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
---annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
---indicesDir /media/data/Daniel/data/indices \
---data /media/data/Daniel/data/brandstaetter/CDN3CANXX/$dir \
---read "R2" \
---barcode "R1" \
---trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
---fastqc /media/data/tools/FastQC/fastqc \
---RSEM /media/data/tools/RSEM-1.3.1/ \
---STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
---index "y" \
---threads 8 \
---rsemResult "genes" \
---rsemRef "yes" \
---rsemRefDir /media/data/Daniel/data/RSEM/ref/Mus_musculus.GRCm38.96 \
---bamFiles "no" \
---impute "no" \
---animal "mouse" \
---sex "F" \
---condition "Bassoon-Knockout" \
---treatment "treatment" \
->> /media/data/Daniel/Scripts/bassoon.pipeline.log.out
+  echo "Start pipeline with $dir!"
+  ./Pipeline.sh \
+    --projectName "data_test" \
+    --output /media/data/Daniel/data/brandstaetter/Output/$dir \
+    --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
+    --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
+    --indicesDir /media/data/Daniel/data/indices \
+    --data /media/data/Daniel/data/brandstaetter/CDN3CANXX/$dir \
+    --read "R2" \
+    --barcode "R1" \
+    --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
+    --fastqc /media/data/tools/FastQC/fastqc \
+    --RSEM /media/data/tools/RSEM-1.3.1/ \
+    --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
+    --index "y" \
+    --threads 8 \
+    --rsemResult "genes" \
+    --rsemRef "yes" \
+    --rsemRefDir /media/data/Daniel/data/RSEM/ref/Mus_musculus.GRCm38.96 \
+    --bamFiles "no" \
+    --impute "no" \
+    --animal "mouse" \
+    --sex "F" \
+    --condition "Bassoon-Knockout" \
+    --treatment "treatment" \
+    > /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
+  exit
 done
 
 # For every single cell sample create one directory with the sequencing files
