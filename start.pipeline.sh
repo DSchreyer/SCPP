@@ -1,13 +1,15 @@
 #!/bin/bash
 ./Pipeline.sh \
 --projectName "data_test" \
---output /media/data/Daniel/data/brandstaetter/Output \
+--output /media/data/Daniel/data/test_output \
 --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
 --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
 --indicesDir /media/data/Daniel/data/indices \
---data /media/data/Daniel/data/test_10x_data/ \
+--data /media/data/Daniel/data/brandstaetter/CDN3CANXX/221931/ \
 --read "R2" \
 --barcode "R1" \
+--num-cells 200 \
+--umi-tools /media/data/Daniel/src/anaconda3/bin/umi_tools \
 --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
 --fastqc /media/data/tools/FastQC/fastqc \
 --RSEM /media/data/tools/RSEM-1.3.1/ \
@@ -31,6 +33,7 @@
 # annotation file needs .gtf format
 
 # Software used:
+# UMI-Tools: conda install -c bioconda umi_tools --- Version
 # Trimmomatic: -preinstalled --- Version 0.36
 # FastQC: -preinstalled --- FastQC v0.11.3
 # STAR: https://github.com/alexdobin/STAR --- Version 2.7.0e

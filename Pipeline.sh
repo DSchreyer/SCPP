@@ -61,12 +61,20 @@ do
       READ="$2"
       shift
       ;;
-    --barcode)
+    --barcode) # Specify "R1" or "R2", which is the Barcode + UMI read
       BARCODE="$2"
+      shift
+      ;;
+    --num-cells) # Number of cells sequenced per sample
+      NUMCELLS="$2"
       shift
       ;;
     --threads) # how many threads are available
       THREADS="$2"
+      shift
+      ;;
+    --umi-tools) # how many threads are available
+      UMITOOLS="$2"
       shift
       ;;
     --trimmomatic) # executable trimmomatic path
@@ -201,6 +209,7 @@ make_dir $RSEMREFDIR
 
 
 # print directory paths
+echo Umi-Tools path = ${UMITOOLS}
 echo STAR Directory = "${STARDIR}"
 echo FASTQC PATH = "${FASTQC}"
 echo Trimmomatic Path = "${TRIMMOMATIC}"
@@ -223,10 +232,65 @@ echo "Quality Control of ${FILES[@]}"
 # $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
 echo "Performed quality control"
 
+# Umi-Tools
+# Identify correct cell barcodes
+
+EXTRACTED_UMIS=()
+DEMUX_FILES=()
+for file in ${FILES[@]}; do
+  echo "Umi-Tools: $file"
+  if [[ $file =~ ^(.*)/(.*)_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+    echo "Using Umi-Tools to extract Barcode"
+    date 
+    dir=${BASH_REMATCH[1]}
+    SAMPLENAME=${BASH_REMATCH[2]}
+    FORMAT=${BASH_REMATCH[3]}
+    ZIP=${BASH_REMATCH[4]}
+    EXTRACTED=$dir/${SAMPLENAME}_${BARCODE}_extracted_001.${FORMAT}${ZIP}
+    WHITELIST="${SAMPLENAME}.whitelist.txt"
+    READ2=$(ls $dir/${SAMPLENAME}_${READ}_001.*)
+    READ2EXTRACTED=$dir/${SAMPLENAME}_${READ}_extracted_001.fastq.gz
+    if [[ ! -f $READ2 ]]; then
+      echo "Barcoding file: $file has no sequencing file $READ2!"
+      echo "Error: $READ2 does not exist!"
+      date
+      exit
+    fi
+    # Identify correct cell barcodes
+    echo "Identify correct cell barcodes with Umi-Tools!"
+    echo "START Umi-Tools whitelist: $file"
+    date
+    $UMITOOLS whitelist \
+      --stdin $file \
+      --bc-pattern='(?P<cell_1>.{16})(?P<umi_1>.{10})' \
+      --extract-method=regex \
+      --set-cell-number=$NUMCELLS \
+      --log2stderr > $WHITELIST
+    echo "END Umi-Tools whitelist: $file" 
+    date
+
+    echo "Extract barcodes and UMIs and add to read names"
+    echo "START Umi-Tools extract: $file"
+    date
+    $UMITOOLS extract \
+      --stdin $file \
+      --bc-pattern='(?P<cell_1>.{16})(?P<umi_1>.{10})' \
+      --stdout $EXTRACTED \
+      --read2-in $READ2 \
+      --read2-out $READ2EXTRACTED \
+      --extract-method=regex \
+      --filter-cell-barcode \
+      --whitelist=$WHITELIST
+    echo "END Umi-Tools extract: $file"
+    date
+    DEMUX_FILES+=($READ2EXTRACTED)
+    exit
+  fi
+done
+
 # Trimming 10x data - 1 Read file and 1 Barcode file
 SE=()
-TRIMBARCODES=()
-for file in ${FILES[@]}; do
+for file in ${DEMUX_FILES[@]}; do
   echo file = $file
   if [[ $file =~ ^.*/(.*)_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is sequencing read!"
@@ -243,23 +307,6 @@ for file in ${FILES[@]}; do
     echo "Trimmed filed saved as $FILTERED"
     date
     SE+=($FILTERED) 
-    
-  # elif [[ $file =~ ^.*/(.*)_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-  #   echo "$file is barcode and umi read!"
-  #   echo "Perform trimming with $file!"
-  #   date
-  #   SAMPLENAME=${BASH_REMATCH[1]}
-  #   FORMAT=${BASH_REMATCH[2]}
-  #   ZIP=${BASH_REMATCH[3]}
-  #   FILTERED="${TRIMSEDIR}/${SAMPLENAME}_trim_${BARCODE}_001.${FORMAT}${ZIP}"
-
-  #   java -jar $TRIMMOMATIC \
-  #     SE -phred33 $file $FILTERED \
-  #     -threads ${THREADS} \
-  #     LEADING:20 TRAILING:20 MINLEN:26 SLIDINGWINDOW:4:20
-  #   echo "Trimmed file saved as $FILTERED"
-  #   date
-  #   TRIMBARCODES+=($FILTERED) 
   else
     echo "$file was not trimmed!"
   fi
@@ -267,11 +314,9 @@ done
 
 # Quality Control of trimmed single end files with FastQC
 echo "Quality Control of trimmed single end files"
-# $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
-# $FASTQC -o $FASTQCDIR -t $THREADS ${TRIMBARCODES[@]}
+$FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
 echo "SINGLE END: ${SE[@]}"
 echo "PAIRED END: ${PE[@]}"
-echo "Trimmed Barcodes: ${TRIMBARCODES[@]}"
 echo "Finished Trimming"
 date
 
@@ -370,6 +415,7 @@ if [[ $star == 0 ]]; then
         --readFilesIn $READ1 $READ2 \
         --readFilesCommand bunzip2 -c \
         --outFileNamePrefix $STAROUT \
+        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
 
     elif [[ $ZIP == ".gz" ]]; then
@@ -379,6 +425,7 @@ if [[ $star == 0 ]]; then
         --readFilesIn $READ1 $READ2 \
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
+        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
     elif [[ $ZIP == "" ]]; then
       echo "unzip"
@@ -386,6 +433,7 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $READ1 $READ2 \
         --outFileNamePrefix $STAROUT \
+        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
     else
       echo "$READ1 and/or $READ2 has the wrong format"
@@ -417,7 +465,8 @@ if [[ $star == 0 ]]; then
         --readFilesIn $file \
         --readFilesCommand bunzip2 -c \
         --outFileNamePrefix $STAROUT \
-        --quantMode TranscriptomeSAM
+        --outSAMtype BAM SortedByCoordinate \
+        --quantMode TranscriptomeSAM 
       echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == ".gz" ]]; then
       echo "gzipped"
@@ -426,6 +475,7 @@ if [[ $star == 0 ]]; then
         --readFilesIn $file \
         --readFilesCommand gunzip -c \
         --outFileNamePrefix $STAROUT \
+        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == "" ]]; then
@@ -434,6 +484,7 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
         --outFileNamePrefix $STAROUT \
+        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
     else
