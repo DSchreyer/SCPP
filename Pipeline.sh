@@ -9,10 +9,7 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: Cell Barcode and UMI removal after mapping
-# TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
-# TODO: adjust trimming and mapping
-# TODO: Demultiplexing integration
+# TODO: Demultiplexing after Bam file generation
 # TODO: change sequencing file input -> run pipeline only one time
 # TODO: Start R-script from pipeline
 
@@ -498,7 +495,6 @@ fi
 echo "Finished STAR Alignment!"
 date
 echo "Pipeline done!"
-exit
 echo "Quantification with RSEM"
 
 
@@ -552,7 +548,6 @@ for file in "${PE_STAR[@]}"; do
     RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
     echo "Quantification with RSEM: ${RSEMINPUT}"
     ${RSEM}/rsem-calculate-expression \
-      --no-bam-output \
       --paired-end \
       -p $THREADS \
       --alignments ${RSEMINPUT} \
@@ -580,10 +575,24 @@ for file in "${SE_STAR[@]}"; do
   fi
 done
 
+echo "Start counting genes with RSEM bam output!"
+echo "Using Umi-tools count"
+date
+
+for file in ${RSEMOUTPUTFILES[@]}; do
+  FILE=${file}.transcript.sorted.bam
+  echo "Umi-tools count: ${FILE}"
+  umi_tools count --per-gene \
+    --gene-tag=XT --assigned-status-tag=XS \
+    --per-cell -I $FILE -S ${file}.tsv.gz
+  echo "Umi-tools count DONE: ${FILE}"
+done
 # cells.counts.txt, cells.metadata.txt, gene.information.txt
 
-
+echo "Finished generating count table with Umi-tools count"
+date
 exit
+
 echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
 
 METADATA="${OUTPUT}/${PROJECT}.cells.metadata.txt"
