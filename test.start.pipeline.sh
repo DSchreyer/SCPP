@@ -1,6 +1,6 @@
 #!/bin/bash
 for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
-  echo "Start pipeline with $dir!"
+  echo "Start pipeline with Sample $dir!"
   ./Pipeline.sh \
     --projectName "data_test" \
     --output /media/data/Daniel/data/brandstaetter/Output/$dir \
@@ -28,7 +28,6 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --condition "Bassoon-Knockout" \
     --treatment "treatment" \
     > /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
-  exit
 done
 
 # For every single cell sample create one directory with the sequencing files
