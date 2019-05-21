@@ -9,7 +9,6 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: STAR can handle gzipped files
 # TODO: Cell Barcode and UMI removal after mapping
 # TODO: Trimming of Cell Barcodes - Remove barcodes with bad quality 
 # TODO: adjust trimming and mapping
@@ -277,26 +276,28 @@ for file in ${FILES[@]}; do
       --stdout $EXTRACTED \
       --read2-in $READ2 \
       --read2-out $READ2EXTRACTED \
-      --extract-method=regex #\
-      # --filter-cell-barcode \
-      # --whitelist=$WHITELIST
+      --extract-method=regex \
+      --quality-filter-mask=20 \
+      --quality-encoding="phred33"
+
+    # --filter-cell-barcode \ # Retain Barcodes in whitelist
+    # --whitelist=$WHITELIST
     echo "END Umi-Tools extract: $file"
     date
     DEMUX_FILES+=($READ2EXTRACTED)
-    exit
   fi
 done
 
-# Trimming 10x data - 1 Read file and 1 Barcode file
+# Trimming 10x sequencing read2
 SE=()
 for file in ${DEMUX_FILES[@]}; do
   echo file = $file
-  if [[ $file =~ ^.*/(.*)_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+  if [[ $file =~ ^.*/(.*)_${READ}_extracted_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is sequencing read!"
     SAMPLENAME=${BASH_REMATCH[1]}
     FORMAT=${BASH_REMATCH[2]}
     ZIP=${BASH_REMATCH[3]}
-    FILTERED="${TRIMSEDIR}/${SAMPLENAME}_trim_${READ}_001.${FORMAT}${ZIP}"
+    FILTERED="${TRIMSEDIR}/${SAMPLENAME}_extracted_trim_${READ}_001.${FORMAT}${ZIP}"
     echo "Perform trimming with $file"
     date
     java -jar $TRIMMOMATIC \
