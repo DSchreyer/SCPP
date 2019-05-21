@@ -10,6 +10,8 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --data /media/data/Daniel/data/brandstaetter/CDN3CANXX/$dir \
     --read "R2" \
     --barcode "R1" \
+    --num-cells 200 \
+    --umi-tools /media/data/Daniel/src/anaconda3/bin/umi_tools \
     --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
     --fastqc /media/data/tools/FastQC/fastqc \
     --RSEM /media/data/tools/RSEM-1.3.1/ \
@@ -26,6 +28,7 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --condition "Bassoon-Knockout" \
     --treatment "treatment" \
     > /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
+  exit
 done
 
 # For every single cell sample create one directory with the sequencing files

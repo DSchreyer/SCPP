@@ -260,12 +260,11 @@ for file in ${FILES[@]}; do
     echo "Identify correct cell barcodes with Umi-Tools!"
     echo "START Umi-Tools whitelist: $file"
     date
-    $UMITOOLS whitelist \
-      --stdin $file \
-      --bc-pattern='(?P<cell_1>.{16})(?P<umi_1>.{10})' \
-      --extract-method=regex \
-      --set-cell-number=$NUMCELLS \
-      --log2stderr > $WHITELIST
+    # $UMITOOLS whitelist \
+    #   --stdin $file \
+    #   --bc-pattern='(?P<cell_1>.{16})(?P<umi_1>.{10})' \
+    #   --extract-method=regex \
+    #   --log2stderr > $WHITELIST
     echo "END Umi-Tools whitelist: $file" 
     date
 
@@ -278,9 +277,9 @@ for file in ${FILES[@]}; do
       --stdout $EXTRACTED \
       --read2-in $READ2 \
       --read2-out $READ2EXTRACTED \
-      --extract-method=regex \
-      --filter-cell-barcode \
-      --whitelist=$WHITELIST
+      --extract-method=regex #\
+      # --filter-cell-barcode \
+      # --whitelist=$WHITELIST
     echo "END Umi-Tools extract: $file"
     date
     DEMUX_FILES+=($READ2EXTRACTED)
