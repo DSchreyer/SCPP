@@ -1,5 +1,6 @@
 #!/bin/bash
-for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
+# for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
+  dir=test
   echo "Start pipeline with Sample $dir!"
   ./Pipeline.sh \
     --projectName "data_test" \
@@ -12,6 +13,7 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --barcode "R1" \
     --num-cells 200 \
     --umi-tools /media/data/Daniel/src/anaconda3/bin/umi_tools \
+    --samtools /media/data/Daniel/src/anaconda3/bin/samtools \
     --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
     --fastqc /media/data/tools/FastQC/fastqc \
     --RSEM /media/data/tools/RSEM-1.3.1/ \
@@ -28,7 +30,7 @@ for dir in $(ls /media/data/Daniel/data/brandstaetter/CDN3CANXX/); do
     --condition "Bassoon-Knockout" \
     --treatment "treatment" \
     > /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
-done
+# done
 
 # For every single cell sample create one directory with the sequencing files
 # Do not change project name, while running pipeline multiple times
