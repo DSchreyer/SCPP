@@ -73,6 +73,10 @@ do
       UMITOOLS="$2"
       shift
       ;;
+    --samtools) # executable trimmomatic path
+      SAMTOOLS="$2"
+      shift
+      ;;
     --trimmomatic) # executable trimmomatic path
       TRIMMOMATIC="$2"
       shift
@@ -162,6 +166,21 @@ make_dir (){
   fi
 }
 
+# Controls existance of file
+##########################
+# Arguments: 
+#   file path
+# Returns:
+#   exits shell script with error message 
+##########################
+file_exists (){
+  local file="${1}"
+  if [[ ! -f $file ]]; then
+    echo "Error: $file does not exist!"
+    exit
+  fi
+}
+
 # check, if all arguments were passed to the Pipeline
 EXPECTEDARGS=(PROJECT GENOME ANNOTATION INDICESDIR GENOMEINDEX DATA THREADS \
     TRIMMOMATIC FASTQC STAR RSEM RSEMRESULT RSEMREF BAMFILES IMPUTE ANIMAL SEX \
@@ -187,6 +206,7 @@ TRIMSEDIR="$TRIMDIR/SingleEnd"
 TRIMPEDIR="$TRIMDIR/PairedEnd" 
 STARPAIREDDIR=${STARDIR}/PairedEnd 
 STARSINGLEDIR=${STARDIR}/SingleEnd 
+UMITOOLSDIR=${OUTPUT}/Umi-Tools
 
 make_dir $OUTPUT 
 make_dir $TRIMDIR 
@@ -202,10 +222,12 @@ make_dir $STARDIR
 make_dir "${STARDIR}/SingleEnd"   
 make_dir "${STARDIR}/PairedEnd"   
 make_dir $RSEMREFDIR
+make_dir $UMITOOLSDIR 
 
 
 # print directory paths
 echo Umi-Tools path = ${UMITOOLS}
+echo Umi-Tools dir
 echo STAR Directory = "${STARDIR}"
 echo FASTQC PATH = "${FASTQC}"
 echo Trimmomatic Path = "${TRIMMOMATIC}"
@@ -242,10 +264,10 @@ for file in ${FILES[@]}; do
     SAMPLENAME=${BASH_REMATCH[2]}
     FORMAT=${BASH_REMATCH[3]}
     ZIP=${BASH_REMATCH[4]}
-    EXTRACTED=$dir/${SAMPLENAME}_${BARCODE}_extracted_001.${FORMAT}${ZIP}
+    EXTRACTED=$UMITOOLSDIR/${SAMPLENAME}_${BARCODE}_extracted_001.${FORMAT}${ZIP}
     WHITELIST="${SAMPLENAME}.whitelist.txt"
     READ2=$(ls $dir/${SAMPLENAME}_${READ}_001.*)
-    READ2EXTRACTED=$dir/${SAMPLENAME}_${READ}_extracted_001.fastq.gz
+    READ2EXTRACTED=$UMITOOLSDIR/${SAMPLENAME}_${READ}_extracted_001.fastq.gz
     if [[ ! -f $READ2 ]]; then
       echo "Barcoding file: $file has no sequencing file $READ2!"
       echo "Error: $READ2 does not exist!"
@@ -289,6 +311,7 @@ done
 SE=()
 for file in ${DEMUX_FILES[@]}; do
   echo file = $file
+  file_exists $file
   if [[ $file =~ ^.*/(.*)_${READ}_extracted_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     echo "$file is sequencing read!"
     SAMPLENAME=${BASH_REMATCH[1]}
@@ -329,6 +352,7 @@ fi
 ANNOZIP=0
 # gunzip gzipped annotation file --- expects a .gtf annotation file
 if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
+  file_exists $ANNOTATION
   echo  "gunzip annotation file ${ANNOTATION}"
   gunzip --keep "${ANNOTATION}"
   ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
@@ -396,7 +420,7 @@ if [[ $star == 0 ]]; then
       SAMPLENAME=${BASH_REMATCH[1]}
       FORMAT=${BASH_REMATCH[2]}
       ZIP=${BASH_REMATCH[3]}
-      STAROUT=$STARPAIREDDIR/$(basename $SAMPLENAME)_
+      STAROUT=$STARPAIREDDIR/$(basename $SAMPLENAME)
       PE_STAR+=($STAROUT)
       echo SAMPLE NAME = $SAMPLENAME
       echo FORMAT = $FORMAT
@@ -440,6 +464,7 @@ if [[ $star == 0 ]]; then
   SE_STAR=()
   for file in "${SE[@]}"; do
     echo $file
+    file_exists $file
     if [[ $file =~ ^.*/(.*)\.(fastq|fq)(\.gz|\.bz2)?$ ]]; then
       echo "Start STAR alignment with $file!"
       SAMPLENAME=${BASH_REMATCH[1]}
@@ -448,7 +473,7 @@ if [[ $star == 0 ]]; then
       echo SampleName = $SAMPLENAME
       echo Format = $FORMAT
       echo ZIP = $ZIP
-      STAROUT=$STARSINGLEDIR/${SAMPLENAME}_
+      STAROUT=$STARSINGLEDIR/${SAMPLENAME}
       echo "STAR Output = $STAROUT"
       SE_STAR+=($STAROUT)
     else
@@ -461,8 +486,8 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
         --readFilesCommand bunzip2 -c \
+        --outSAMtype BAM \
         --outFileNamePrefix $STAROUT \
-        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM 
       echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == ".gz" ]]; then
@@ -471,8 +496,8 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
         --readFilesCommand gunzip -c \
+        --outSAMtype BAM \
         --outFileNamePrefix $STAROUT \
-        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
     elif [[ $ZIP == "" ]]; then
@@ -480,8 +505,8 @@ if [[ $star == 0 ]]; then
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
+        --outSAMtype BAM \
         --outFileNamePrefix $STAROUT \
-        --outSAMtype BAM SortedByCoordinate \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
     else
@@ -543,44 +568,57 @@ echo "SINGLE END FILES: ${SE_STAR[@]}"
 RSEMOUTPUTFILES=()
 for file in "${PE_STAR[@]}"; do
   echo $file
-  RSEMINPUT=${file}Aligned.toTranscriptome.out.bam
+  RSEMINPUT=${file}.Aligned.toTranscriptome.out.bam
+  file_exists $RSEMINPUT
   if [[ -f ${RSEMINPUT} ]]; then
-    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
+    RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
     echo "Quantification with RSEM: ${RSEMINPUT}"
     ${RSEM}/rsem-calculate-expression \
       --paired-end \
+      --quite \
       -p $THREADS \
       --alignments ${RSEMINPUT} \
       ${PREP_REF} \
-      ${RSEMOUT}/$(basename $file)
+      $RSEMOUTPUTFILE
+    $SAMTOOLS
+    file_exists $RSEMOUTPUTFILE
   else
     echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
     exit
   fi
 done
 
+RSEMSORTED=()
 for file in "${SE_STAR[@]}"; do
-  RSEMINPUT=${file}Aligned.toTranscriptome.out.bam
-  if [[ -f ${RSEMINPUT} ]]; then
-    echo "Quantification with RSEM: ${RSEMINPUT}"
-    RSEMOUTPUTFILES+=(${RSEMOUT}/$(basename $file))
-    ${RSEM}/rsem-calculate-expression \
-      -p $THREADS \
-      --alignments ${RSEMINPUT} \
-      ${PREP_REF} \
-      ${RSEMOUT}/$(basename $file)
-  else
-    echo "${RSEMINPUT} does not exist. Please check STAR INPUT and STAR OUTPUT"
-    exit
-  fi
+  RSEMINPUT=${file}.Aligned.toTranscriptome.out.bam
+  file_exists $RSEMINPUT
+  echo "Quantification with RSEM: ${RSEMINPUT}"
+  RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
+  ${RSEM}/rsem-calculate-expression \
+    -p $THREADS \
+    --quite \
+    --alignments ${RSEMINPUT} \
+    ${PREP_REF} \
+    $RSEMOUTPUTFILE
+  echo "Finished: RSEM rsem-calculate-expression $RSEMINPUT"
+  date
+  SAMINPUT=${RSEMOUTPUTFILE}.transcript.bam
+  SAMOUTPUT=${RSEMOUTPUTFILE}.transcript.sorted.bam
+  echo "Start: Samtools sort ${SAMINPUT}"
+  $SAMTOOLS sort --threads ${THREADS} ${SAMINPUT} \
+    -o ${SAMOUTPUT}
+  echo "Finished: Samtools sort ${SAMOUTPUT}"
+  date
+  RSEMSORTED+=(${SAMOUTPUT})
+  file_exists ${SAMOUTPUT}
 done
 
 echo "Start counting genes with RSEM bam output!"
 echo "Using Umi-tools count"
 date
 
-for file in ${RSEMOUTPUTFILES[@]}; do
-  FILE=${file}.transcript.sorted.bam
+for file in ${RSEMSORTED[@]}; do
+  FILE=$(basename $file .bam)
   echo "Umi-tools count: ${FILE}"
   umi_tools count --per-gene \
     --gene-tag=XT --assigned-status-tag=XS \
