@@ -473,7 +473,7 @@ if [[ $star == 0 ]]; then
       echo SampleName = $SAMPLENAME
       echo Format = $FORMAT
       echo ZIP = $ZIP
-      STAROUT=$STARSINGLEDIR/${SAMPLENAME}
+      STAROUT=$STARSINGLEDIR/${SAMPLENAME}.
       echo "STAR Output = $STAROUT"
       SE_STAR+=($STAROUT)
     else
@@ -486,7 +486,7 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
         --readFilesCommand bunzip2 -c \
-        --outSAMtype BAM \
+        --outSAMtype BAM Unsorted \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM 
       echo "Saved STAR output of $file in $STAROUT"
@@ -496,7 +496,7 @@ if [[ $star == 0 ]]; then
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
         --readFilesCommand gunzip -c \
-        --outSAMtype BAM \
+        --outSAMtype BAM Unsorted \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
@@ -505,7 +505,7 @@ if [[ $star == 0 ]]; then
       $STAR --runThreadN $THREADS \
         --genomeDir "${INDICESDIR}" \
         --readFilesIn $file \
-        --outSAMtype BAM \
+        --outSAMtype BAM Unsorted \
         --outFileNamePrefix $STAROUT \
         --quantMode TranscriptomeSAM
       echo "Saved STAR output of $file in $STAROUT"
@@ -568,14 +568,14 @@ echo "SINGLE END FILES: ${SE_STAR[@]}"
 RSEMOUTPUTFILES=()
 for file in "${PE_STAR[@]}"; do
   echo $file
-  RSEMINPUT=${file}.Aligned.toTranscriptome.out.bam
+  RSEMINPUT="${file}.Aligned.toTranscriptome.out.bam"
   file_exists $RSEMINPUT
   if [[ -f ${RSEMINPUT} ]]; then
     RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
     echo "Quantification with RSEM: ${RSEMINPUT}"
     ${RSEM}/rsem-calculate-expression \
       --paired-end \
-      --quite \
+      --quiet \
       -p $THREADS \
       --alignments ${RSEMINPUT} \
       ${PREP_REF} \
@@ -590,13 +590,13 @@ done
 
 RSEMSORTED=()
 for file in "${SE_STAR[@]}"; do
-  RSEMINPUT=${file}.Aligned.toTranscriptome.out.bam
+  RSEMINPUT="${file}.Aligned.toTranscriptome.out.bam"
   file_exists $RSEMINPUT
   echo "Quantification with RSEM: ${RSEMINPUT}"
   RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
   ${RSEM}/rsem-calculate-expression \
     -p $THREADS \
-    --quite \
+    --quiet \
     --alignments ${RSEMINPUT} \
     ${PREP_REF} \
     $RSEMOUTPUTFILE
