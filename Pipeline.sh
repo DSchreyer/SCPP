@@ -568,7 +568,7 @@ echo "SINGLE END FILES: ${SE_STAR[@]}"
 RSEMOUTPUTFILES=()
 for file in "${PE_STAR[@]}"; do
   echo $file
-  RSEMINPUT="${file}.Aligned.toTranscriptome.out.bam"
+  RSEMINPUT="${file}Aligned.toTranscriptome.out.bam"
   file_exists $RSEMINPUT
   if [[ -f ${RSEMINPUT} ]]; then
     RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
@@ -590,10 +590,10 @@ done
 
 RSEMSORTED=()
 for file in "${SE_STAR[@]}"; do
-  RSEMINPUT="${file}.Aligned.toTranscriptome.out.bam"
+  RSEMINPUT="${file}Aligned.toTranscriptome.out.bam"
   file_exists $RSEMINPUT
   echo "Quantification with RSEM: ${RSEMINPUT}"
-  RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file)
+  RSEMOUTPUTFILE=${RSEMOUT}/$(basename $file .)
   ${RSEM}/rsem-calculate-expression \
     -p $THREADS \
     --quiet \
