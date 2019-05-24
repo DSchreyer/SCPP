@@ -29,6 +29,10 @@ while [[ $# -gt 0 ]]
 do
   option="$1"
   case $option in
+    --qualityControl) # Perform quality control?
+      QC="$2"
+      shift # shift arguments to the left = $2 -> $1
+      ;;
     --projectName) # Project name to generate specific file names
       PROJECT="$2"
       shift # shift arguments to the left = $2 -> $1
@@ -242,13 +246,25 @@ echo Directory for single end BAM files = "$BAMSINGLE"
 echo Sequencing Read = $READ
 echo Barcode and Umi Read = $BARCODE
 
+if [[ $QC = "no" ]]; then
+  echo "Don't perform Quality Control with FastQC"
+elif [[ $QC == "yes" ]]; then
+  echo "Perform Quality Control with FastQC"
+else
+  echo "Perform Quality Control?"
+  echo "'yes' | 'no'"
+  exit
+fi
+
 FILES=$(ls -d $DATA/*)
 date
 # Quality Control with all files in the data Directory --- FastQC
-echo "Perform quality control"
-echo "Quality Control of ${FILES[@]}"
-# $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
-echo "Performed quality control"
+if [[ $QC == "yes" ]]; then
+  echo "Perform quality control"
+  echo "Quality Control of ${FILES[@]}"
+  $FASTQC -o $FASTQCDIR -t $THREADS ${FILES[@]}
+  echo "Performed quality control"
+fi
 
 # Umi-Tools
 # Identify correct cell barcodes
@@ -333,12 +349,14 @@ for file in ${DEMUX_FILES[@]}; do
 done
 
 # Quality Control of trimmed single end files with FastQC
-echo "Quality Control of trimmed single end files"
-$FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
-echo "SINGLE END: ${SE[@]}"
-echo "PAIRED END: ${PE[@]}"
-echo "Finished Trimming"
-date
+if [[ $QC == "yes" ]]; then
+  echo "Quality Control of trimmed single end files"
+  $FASTQC -o $FASTQCDIR -t $THREADS ${SE[@]}
+  echo "SINGLE END: ${SE[@]}"
+  echo "PAIRED END: ${PE[@]}"
+  echo "Finished Trimming"
+  date
+fi
 
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
@@ -622,8 +640,9 @@ for file in ${RSEMSORTED[@]}; do
   echo "Umi-tools count: ${FILE}"
   umi_tools count --per-gene \
     --gene-tag=XT --assigned-status-tag=XS \
-    --per-cell -I $FILE -S ${file}.tsv.gz
-  echo "Umi-tools count DONE: ${FILE}"
+    --per-cell -I $file -S ${FILE}.tsv.gz
+  echo "Umi-tools count DONE: ${file}"
+  echo "Stored count table in $FILE"
 done
 # cells.counts.txt, cells.metadata.txt, gene.information.txt
 
