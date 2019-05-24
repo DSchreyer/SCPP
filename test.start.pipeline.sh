@@ -8,6 +8,7 @@
     --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
     --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
     --indicesDir /media/data/Daniel/data/indices \
+    --qualityControl "no" \
     --data /media/data/Daniel/data/brandstaetter/CDN3CANXX/$dir \
     --read "R2" \
     --barcode "R1" \
