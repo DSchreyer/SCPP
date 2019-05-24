@@ -211,6 +211,7 @@ TRIMPEDIR="$TRIMDIR/PairedEnd"
 STARPAIREDDIR=${STARDIR}/PairedEnd 
 STARSINGLEDIR=${STARDIR}/SingleEnd 
 UMITOOLSDIR=${OUTPUT}/Umi-Tools
+COUNTS=${OUTPUT}/counts
 
 make_dir $OUTPUT 
 make_dir $TRIMDIR 
@@ -227,6 +228,7 @@ make_dir "${STARDIR}/SingleEnd"
 make_dir "${STARDIR}/PairedEnd"   
 make_dir $RSEMREFDIR
 make_dir $UMITOOLSDIR 
+make_dir $COUNTS
 
 
 # print directory paths
@@ -627,6 +629,8 @@ for file in "${SE_STAR[@]}"; do
     -o ${SAMOUTPUT}
   echo "Finished: Samtools sort ${SAMOUTPUT}"
   date
+  echo "Start: Samtools index ${SAMOUTPUT}"
+  $SAMTOOLS index $SAMOUTPUT
   RSEMSORTED+=(${SAMOUTPUT})
   file_exists ${SAMOUTPUT}
 done
@@ -636,11 +640,11 @@ echo "Using Umi-tools count"
 date
 
 for file in ${RSEMSORTED[@]}; do
-  FILE=$(basename $file .bam)
+  FILE=${COUNTS}/$(basename $file .bam).tsv.gz
   echo "Umi-tools count: ${FILE}"
   umi_tools count --per-gene \
     --gene-tag=XT --assigned-status-tag=XS \
-    --per-cell -I $file -S ${FILE}.tsv.gz
+    --per-cell -I $file -S ${FILE}
   echo "Umi-tools count DONE: ${file}"
   echo "Stored count table in $FILE"
 done
