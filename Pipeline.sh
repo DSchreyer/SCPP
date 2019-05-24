@@ -642,8 +642,8 @@ date
 for file in ${RSEMSORTED[@]}; do
   FILE=${COUNTS}/$(basename $file .bam).tsv.gz
   echo "Umi-tools count: ${FILE}"
-  umi_tools count --per-gene \
-    --gene-tag=XT --assigned-status-tag=XS \
+  $UMITOOLS count --per-gene \
+    --per-contig \
     --per-cell -I $file -S ${FILE}
   echo "Umi-tools count DONE: ${file}"
   echo "Stored count table in $FILE"
