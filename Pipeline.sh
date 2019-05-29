@@ -9,7 +9,7 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: Demultiplexing after Bam file generation
+# TODO: umi_tools whitelist
 # TODO: change sequencing file input -> run pipeline only one time
 # TODO: Start R-script from pipeline
 
