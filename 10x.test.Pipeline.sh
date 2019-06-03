@@ -307,37 +307,53 @@ R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1
 WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
 R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
 
-# Identify correct cell barcodes
-echo "Identify correct cell barcodes with Umi-Tools!"
-echo "START Umi-Tools whitelist: $R1"
-date
-$UMITOOLS whitelist \
-  --stdin $R1 \
-  --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-  --method "reads" \
-  --log2stderr > $WHITELIST
-echo "END Umi-Tools whitelist: $R1" 
-date
+# if w != 1 -> no umi_tools whitelist
+w=1
+if [[ $w == 1 ]]; then
+  # Identify correct cell barcodes
+  echo "Identify correct cell barcodes with Umi-Tools!"
+  echo "START Umi-Tools whitelist: $R1"
+  date
+  $UMITOOLS whitelist \
+    --stdin $R1 \
+    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+    --method "reads" \
+    --log2stderr > $WHITELIST
+  echo "END Umi-Tools whitelist: $R1" 
+  date
+  echo "Extract barcodes and UMIs and add to read names"
+  echo "START Umi-Tools extract: $R1 and $R2"
+  date
+  $UMITOOLS extract \
+    --stdin $R1 \
+    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+    --stdout $R1_EXT \
+    --read2-in $R2 \
+    --read2-out $R2_EXT \
+    # --quality-filter-mask=20 \
+    --quality-encoding="phred33" \
+    --filter-cell-barcode \
+    --whitelist=$WHITELIST
 
-echo "Extract barcodes and UMIs and add to read names"
-echo "START Umi-Tools extract: $R1 and $R2"
-date
-$UMITOOLS extract \
-  --stdin $R1 \
-  --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-  --stdout $R1_EXT \
-  --read2-in $R2 \
-  --read2-out $R2_EXT \
-  --quality-filter-mask=20 \
-  --quality-encoding="phred33" \
-  --filter-cell-barcode \
-  --whitelist=$WHITELIST
-
-# --filter-cell-barcode \ # Retain Barcodes in whitelist
-# --whitelist=$WHITELIST
-echo "END Umi-Tools extract: $R1 and $R2"
-echo "Stored: $R1_EXT and $R2_EXT"
-date
+  echo "END Umi-Tools extract: $R1 and $R2"
+  echo "Stored: $R1_EXT and $R2_EXT"
+  date
+else
+  echo "Extract barcodes and UMIs and add to read names"
+  echo "START Umi-Tools extract: $R1 and $R2"
+  date
+  $UMITOOLS extract \
+    --stdin $R1 \
+    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+    --stdout $R1_EXT \
+    --read2-in $R2 \
+    --read2-out $R2_EXT \
+    --quality-filter-mask=20 \
+    --quality-encoding="phred33" \
+  echo "END Umi-Tools extract: $R1 and $R2"
+  echo "Stored: $R1_EXT and $R2_EXT"
+  date
+fi
 
 # Trimming 10x sequencing read2
 echo "Start trimming: $R2_EXT"
@@ -542,7 +558,7 @@ date
 COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
 echo "Umi-tools count: ${SAMOUTPUT}"
 $UMITOOLS count --per-gene \
-  --per-contig \
+  # --per-contig \
   --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
 
 echo "Finished: Umi-tools count: $SAMOUTPUT"
