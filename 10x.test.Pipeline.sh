@@ -9,9 +9,8 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: concatenate all fastq files -> use this for further analysis
-# TODO: umi_tools whitelist
-# TODO: change sequencing file input -> run pipeline only one time
+# TODO: Add FeatureCounts in Pipeline and start.pipeline
+# TODO: Change Variable names for feature counts and rsem --> umi-tools count
 # TODO: Start R-script from pipeline
 
 ##########################
@@ -286,6 +285,15 @@ else
   exit
 fi
 
+if [[ $TRIMMING = "no" ]]; then
+  echo "Don't perform Trimming with Trimmomatic"
+elif [[ $TRIMMING == "yes" ]]; then
+  echo "Perform Trimming with Trimmomatic"
+else
+  echo "Perform Trimming with Trimmomatic?"
+  echo "'yes' | 'no'"
+  exit
+fi
 # Quality Control with all files in the data Directory --- FastQC
 if [[ $QC == "yes" ]]; then
   echo "Perform quality control"
@@ -356,20 +364,24 @@ else
 fi
 
 # Trimming 10x sequencing read2
-echo "Start trimming: $R2_EXT"
+if [[ $TRIMMING == "yes" ]]; then
+  echo "Start trimming: $R2_EXT"
+  date
+  TRIM="_trim"
+  R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
+  java -jar $TRIMMOMATIC \
+    SE -phred33 $R2_EXT $R2_TRIM \
+    -threads ${THREADS} \
+    LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:25 HEADCROP:10
+  echo "Finished trimming with $R2_EXT"
+  echo "Stored: $R2_TRIM"
 date
-TRIM="_trim"
-R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
-java -jar $TRIMMOMATIC \
-  SE -phred33 $R2_EXT $R2_TRIM \
-  -threads ${THREADS} \
-  LEADING:20 TRAILING:20 MINLEN:40 SLIDINGWINDOW:4:22 HEADCROP:10
-echo "Finished trimming with $R2_EXT"
-echo "Stored: $R2_TRIM"
-date
+else
+  R2_TRIM="${R2_EXT}"
+fi
 
 # Quality Control of trimmed single end files with FastQC
-if [[ $QC == "yes" ]]; then
+if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
   echo "Start Quality control: $R2_TRIM"
   date
   $FASTQC -o $FASTQCDIR -t $THREADS ${R2_TRIM}
@@ -446,11 +458,14 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   date
 fi
 
-R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
 
 echo "Start STAR alignment: $R2_TRIM"
-R2_STAROUT=$STARDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}.
-echo "STAR Output = $R2_STAROUT"
+if [[ $TRIMMING == "yes" ]]; then
+  R2_STAROUT=$STARDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}.
+  echo "STAR Output = $R2_STAROUT"
+else
+  R2_STAROUT=$STARDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}.
+fi
 
 if [[ $R2_ZIP == ".bz2" ]]; then
   echo "bzipped"
@@ -520,6 +535,15 @@ else
   PREP_REF=${RSEMREFDIR}
 fi
 
+
+# Count reads per gene with featureCounts
+$FEATURECOUNTS \
+  -a $ANNOTATION \
+  -o $COUNTOUT \
+  -R BAM ${R2_STAROUT}Aligned.out.bam \
+  -T ${THREADS}
+
+
 # remove unzipped annotation file - restore original file structure
 if [[ $ANNOZIP == 1 ]]; then
   echo "Remove unzipped annotation file"
@@ -559,6 +583,7 @@ COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
 echo "Umi-tools count: ${SAMOUTPUT}"
 $UMITOOLS count --per-gene \
   # --per-contig \
+  --wide-format-cell-counts \
   --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
 
 echo "Finished: Umi-tools count: $SAMOUTPUT"
