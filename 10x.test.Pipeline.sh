@@ -10,6 +10,7 @@
 #           5. Marker genes for sequenced cell types
 
 # TODO: Add FeatureCounts in Pipeline and start.pipeline
+# TODO: ADD HTSeq-count
 # TODO: Change Variable names for feature counts and rsem --> umi-tools count
 # TODO: Start R-script from pipeline
 
@@ -85,6 +86,10 @@ do
       TRIMMOMATIC="$2"
       shift
       ;;
+    --HTSeq) # executable HTSeq
+      HTSEQ="$2"
+      shift
+      ;;
     --fastqc) # executable fastqc
       FASTQC="$2"
       shift
@@ -99,6 +104,10 @@ do
       ;;
     --RSEM)
       RSEM="$2"
+      shift
+      ;;
+    --featureCounts)
+      FEATURECOUNTS="$2"
       shift
       ;;
     --rsemResult) # use "gene" or "isoform" counts for downstream analyses
@@ -237,11 +246,12 @@ echo Barcode and Umi Read = $BARCODE
 
 # Concatenate fastq files together
 FILES=$(ls -d $DATA/*)
-date
 
 # READ1 stores each fastq file with barcodes and umis, READ2 contains cDNA read
 READ1_ARRAY=()
 READ2_ARRAY=()
+echo "Start: Concatenating all Fastq files of a sample"
+date
 for file in ${FILES[@]}; do
   if [[ $file =~ ^(.*)/(.*)_L[0-9]{3}_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R1_ARRAY+=($file)
@@ -259,7 +269,6 @@ for file in ${FILES[@]}; do
     R2=${MERGED}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}${R2_ZIP}
   fi 
 done
-
 if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
   R2=${R2_ARRAY}
   R1=${R1_ARRAY}
@@ -272,7 +281,7 @@ else
   echo "No read file is stored in $DATA!"
   help_message
 fi
-
+echo "Finished: Stored Fastq file in $MERGED"
 
 
 if [[ $QC = "no" ]]; then
@@ -285,6 +294,8 @@ else
   exit
 fi
 
+
+TRIMMING="yes"
 if [[ $TRIMMING = "no" ]]; then
   echo "Don't perform Trimming with Trimmomatic"
 elif [[ $TRIMMING == "yes" ]]; then
@@ -365,16 +376,18 @@ fi
 
 # Trimming 10x sequencing read2
 if [[ $TRIMMING == "yes" ]]; then
-  echo "Start trimming: $R2_EXT"
+  echo "Start trimming reads with Trimmomatic!"
+  echo "Input: $R2_EXT"
+  echo "OUTPUT: R2_TRIM"
   date
   TRIM="_trim"
   R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
   java -jar $TRIMMOMATIC \
     SE -phred33 $R2_EXT $R2_TRIM \
     -threads ${THREADS} \
-    LEADING:20 TRAILING:20 MINLEN:50 SLIDINGWINDOW:4:25 HEADCROP:10
-  echo "Finished trimming with $R2_EXT"
-  echo "Stored: $R2_TRIM"
+    LEADING:20 TRAILING:20 HEADCROP:10 MINLEN:75 
+  echo "Finished trimming!"
+  echo "Stored trimmed reads in $R2_TRIM"
 date
 else
   R2_TRIM="${R2_EXT}"
@@ -536,14 +549,6 @@ else
 fi
 
 
-# Count reads per gene with featureCounts
-$FEATURECOUNTS \
-  -a $ANNOTATION \
-  -o $COUNTOUT \
-  -R BAM ${R2_STAROUT}Aligned.out.bam \
-  -T ${THREADS}
-
-
 # remove unzipped annotation file - restore original file structure
 if [[ $ANNOZIP == 1 ]]; then
   echo "Remove unzipped annotation file"
@@ -551,42 +556,71 @@ if [[ $ANNOZIP == 1 ]]; then
 fi
 
 # Quantification step with RSEM function: rsem-calculate-expression
-RSEMINPUT="${R2_STAROUT}Aligned.toTranscriptome.out.bam"
-file_exists $RSEMINPUT
-echo "Quantification with RSEM: ${RSEMINPUT}"
-RSEMOUTFILE=${RSEMOUT}/$(basename $RSEMINPUT .out.bam)
-echo "RSEM file prefix: $RSEMOUTFILE"
-${RSEM}/rsem-calculate-expression \
-  -p $THREADS \
-  --quiet \
-  --alignments ${RSEMINPUT} \
-  ${PREP_REF} \
-  $RSEMOUTFILE
-echo "Finished: RSEM rsem-calculate-expression $RSEMINPUT"
+r=1
+if [[ $r == 0 ]]; then
+  RSEMINPUT="${R2_STAROUT}Aligned.toTranscriptome.out.bam"
+  file_exists $RSEMINPUT
+  echo "Quantification with RSEM: ${RSEMINPUT}"
+  RSEMOUTFILE=${RSEMOUT}/$(basename $RSEMINPUT .out.bam)
+  echo "RSEM file prefix: $RSEMOUTFILE"
+  ${RSEM}/rsem-calculate-expression \
+    -p $THREADS \
+    --quiet \
+    --alignments ${RSEMINPUT} \
+    ${PREP_REF} \
+    $RSEMOUTFILE
+  echo "Finished: RSEM rsem-calculate-expression $RSEMINPUT"
+  date
+  TRANSCRIPT_BAM=${RSEMOUTFILE}.transcript.bam
+  GENOME_BAM=${RSEMOUTFILE}.genes.bam
+  $RSEM/rsem-tbam2gbam $PREP_REF $TRANSCRIPT_BAM $GENOME_BAM
+  SAMOUTPUT=${RSEMOUTFILE}.genes.sorted.bam
+fi
+
+f=0
+# Count reads per gene with featureCounts
+if [[ $f == 0 ]]; then
+  INPUT=${R2_STAROUT}Aligned.out.bam
+  COUNTOUT=${COUNTS}/$(basename $INPUT out.bam)counts.txt
+  echo "Start counting features with featureCounts!"
+  echo "Input: $INPUT"
+  echo "Output: $COUNTOUT"
+  $FEATURECOUNTS \
+    -a $ANNOTATION \
+    -o $COUNTOUT \
+    -R BAM $INPUT \
+    -T ${THREADS}
+  SAMINPUT=${INPUT}.featureCounts.bam
+  SAMOUTPUT=$COUNTS/$(basename $COUNTOUT counts.txt)Aligned.out.featureCounts.sorted.bam  
+fi
+
+echo "Start: Samtools sort!"
+echo "Input: $SAMINPUT"
+echo "Output: $SAMOUTPUT"
 date
-SAMINPUT=${RSEMOUTFILE}.transcript.bam
-SAMOUTPUT=${RSEMOUTFILE}.transcript.sorted.bam
-echo "Start: Samtools sort ${SAMINPUT}"
 $SAMTOOLS sort --threads ${THREADS} ${SAMINPUT} \
   -o ${SAMOUTPUT}
-echo "Finished: Samtools sort ${SAMOUTPUT}"
+echo "Finished: Samtools sort!"
 date
-echo "Start: Samtools index ${SAMOUTPUT}"
+echo "Start: Samtools index"
+echo "Input: $SAMOUTPUT"
 $SAMTOOLS index $SAMOUTPUT
 file_exists ${SAMOUTPUT}
-echo "Finished: Samtools index ${SAMOUTPUT}"
+echo "Finished: Samtools index"
 
-echo "Demultiplexing counts with Umi-tools count: $SAMOUTPUT"
-date
 
 COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
-echo "Umi-tools count: ${SAMOUTPUT}"
+echo "Start: Demultiplexing counts with Umi-tools count!"
+echo "Input: $SAMOUTPUT"
+echo "Output: $COUNTFILE"
+date
+
 $UMITOOLS count --per-gene \
-  # --per-contig \
+  --gene-tag=XT --assigned-status-tag=XS \
   --wide-format-cell-counts \
   --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
 
-echo "Finished: Umi-tools count: $SAMOUTPUT"
+echo "Finished: Umi-tools count"
 echo "Stored count table in $COUNTFILE"
 date
 exit
