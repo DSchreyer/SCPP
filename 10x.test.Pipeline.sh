@@ -207,7 +207,7 @@ if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
   help_message
 fi
 
-# create directories for essential outputs  # print directory paths
+# create directories for essential outputs  
 TRIMDIR=$OUTPUT/trimmomatic_output 
 FASTQCDIR=$OUTPUT/FastQC_output    
 STARDIR=$OUTPUT/STAR_output    
@@ -217,6 +217,7 @@ UMITOOLSDIR=${OUTPUT}/Umi-Tools
 COUNTS=${OUTPUT}/counts
 MERGED=${OUTPUT}/Files
 
+echo "Create multiple directories in $OUTPUT"
 make_dir $OUTPUT 
 make_dir $TRIMDIR 
 make_dir $FASTQCDIR   
@@ -228,21 +229,6 @@ make_dir $RSEMREFDIR
 make_dir $UMITOOLSDIR 
 make_dir $COUNTS
 make_dir $MERGED
-
-
-# print directory paths
-echo Umi-Tools path = ${UMITOOLS}
-echo STAR Directory = "${STARDIR}"
-echo FASTQC PATH = "${FASTQC}"
-echo Trimmomatic Path = "${TRIMMOMATIC}"
-echo STAR Path = "${STAR}"
-echo RSEM Path = "${RSEM}"
-echo RSEM REF Prepaired = "${RSEMREF}"
-echo Prepared RSEM reference in "${RSEMREFDIR}"
-echo Use calculated expression of "${RSEMRESULT}"
-echo Sequencing Read = $READ
-echo Barcode and Umi Read = $BARCODE
-
 
 # Concatenate fastq files together
 FILES=$(ls -d $DATA/*)
@@ -307,7 +293,6 @@ else
 fi
 echo "Finished: Stored Fastq file in $MERGED"
 
-exit
 
 if [[ $QC = "no" ]]; then
   echo "Don't perform Quality Control with FastQC"
