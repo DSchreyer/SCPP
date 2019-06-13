@@ -250,39 +250,64 @@ FILES=$(ls -d $DATA/*)
 # READ1 stores each fastq file with barcodes and umis, READ2 contains cDNA read
 READ1_ARRAY=()
 READ2_ARRAY=()
+GZCOMPRESSED=()
+BZ2COMPRESSED=()
 echo "Start: Concatenating all Fastq files of a sample"
 date
 for file in ${FILES[@]}; do
-  if [[ $file =~ ^(.*)/(.*)_L[0-9]{3}_${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-    R1_ARRAY+=($file)
+  if [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R1_SAMPLE=${BASH_REMATCH[2]}
-    R1_LANES=_ALL_
-    R1_FORMAT=${BASH_REMATCH[3]}
-    R1_ZIP=${BASH_REMATCH[4]}
-    R1=${MERGED}/${R1_SAMPLE}${R2_LANES}${BARCODE}_001.${R1_FORMAT}${R1_ZIP}
-  elif [[ $file =~ ^(.*)/(.*)_L[0-9]{3}_${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-    R2_ARRAY+=($file)
+    R1_LANES=${BASH_REMATCH[3]}
+    R1_FORMAT=${BASH_REMATCH[4]}
+    R1_ZIP=${BASH_REMATCH[5]}
+    NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
+    if [[ $R1_ZIP == ".gz" ]]; then
+      echo "Decompress gz compressed File: $file"
+      gunzip $file 
+      GZCOMPRESSED+=($NEWFILE_R1)
+    elif [[ $R1_ZIP == ".bz2" ]]; then
+      echo "Decompress bzip2 compressed File: $file"
+      bzip2 -d $file
+      BZ2COMPRESSED+=($NEWFILE_R1)
+    fi
+    R1_ARRAY+=($NEWFILE_R1)
+    R1=${MERGED}/${R1_SAMPLE}_ALL_${BARCODE}_001.${R1_FORMAT}
+  elif [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R2_SAMPLE=${BASH_REMATCH[2]}
-    R2_LANES=_ALL_
-    R2_FORMAT=${BASH_REMATCH[3]}
-    R2_ZIP=${BASH_REMATCH[4]}
-    R2=${MERGED}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}${R2_ZIP}
+    R2_LANES=${BASH_REMATCH[3]}
+    R2_FORMAT=${BASH_REMATCH[4]}
+    R2_ZIP=${BASH_REMATCH[5]}
+    NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}
+    if [[ $R2_ZIP == ".gz" ]]; then
+      echo "Decompress gz compressed File: $file"
+      gunzip $file 
+      GZCOMPRESSED+=($NEWFILE_R2)
+    elif [[ $R2_ZIP == ".bz2" ]]; then
+      echo "Decompress bzip2 compressed File: $file"
+      bzip2 -d $file
+      BZ2COMPRESSED+=($NEWFILE_R2)
+    fi
+    R2_ARRAY+=($NEWFILE_R2)
+    R2=${MERGED}/${R2_SAMPLE}_ALL_${READ}_001.${R2_FORMAT}
   fi 
 done
+
 if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
   R2=${R2_ARRAY}
   R1=${R1_ARRAY}
   echo "Only one sequencing file"
 elif [[ ${#R2_ARRAY[@]} -gt 1 ]]; then
+  echo "Concatenate Read 1 Files"
   cat ${R1_ARRAY[@]} > $R1
+  echo "Concatenate Read 2 Files"
   cat ${R2_ARRAY[@]} > $R2
-  echo "Concatenate ${R2_ARRAY[@]}"
 else
   echo "No read file is stored in $DATA!"
   help_message
 fi
 echo "Finished: Stored Fastq file in $MERGED"
 
+exit
 
 if [[ $QC = "no" ]]; then
   echo "Don't perform Quality Control with FastQC"
@@ -295,7 +320,7 @@ else
 fi
 
 
-TRIMMING="yes"
+TRIMMING="no"
 if [[ $TRIMMING = "no" ]]; then
   echo "Don't perform Trimming with Trimmomatic"
 elif [[ $TRIMMING == "yes" ]]; then
@@ -327,8 +352,8 @@ WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
 R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
 
 # if w != 1 -> no umi_tools whitelist
-w=1
-if [[ $w == 1 ]]; then
+w="no"
+if [[ $w == "yes" ]]; then
   # Identify correct cell barcodes
   echo "Identify correct cell barcodes with Umi-Tools!"
   echo "START Umi-Tools whitelist: $R1"
@@ -349,7 +374,6 @@ if [[ $w == 1 ]]; then
     --stdout $R1_EXT \
     --read2-in $R2 \
     --read2-out $R2_EXT \
-    # --quality-filter-mask=20 \
     --quality-encoding="phred33" \
     --filter-cell-barcode \
     --whitelist=$WHITELIST
@@ -367,7 +391,7 @@ else
     --stdout $R1_EXT \
     --read2-in $R2 \
     --read2-out $R2_EXT \
-    --quality-filter-mask=20 \
+    --quality-filter-mask=15 \
     --quality-encoding="phred33" \
   echo "END Umi-Tools extract: $R1 and $R2"
   echo "Stored: $R1_EXT and $R2_EXT"
@@ -623,6 +647,21 @@ $UMITOOLS count --per-gene \
 echo "Finished: Umi-tools count"
 echo "Stored count table in $COUNTFILE"
 date
+
+echo "Compress previous compressed files"
+for file in ${GZCOMPRESSED[@]}; do
+  echo "Gzip File: $file"
+  gzip $file
+done
+
+for file in ${BZ2COMPRESSED[@]}; do
+  echo "Bz2 File: $file"
+  bzip2 $file
+done
+
+echo "Finished: Compress Files"
+date
+echo "End of Pipeline"
 exit
 
 echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
