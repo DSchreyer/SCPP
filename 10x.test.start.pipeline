@@ -3,7 +3,7 @@ for dir in $(ls /media/data2/Daniel/CDN3CANXX/); do
   echo "Start pipeline with Sample $dir!"
   ./10x.test.Pipeline.sh \
     --projectName "data_test" \
-    --output /media/data2/Daniel/Output/ \
+    --output /media/data2/Daniel/Output/$dir \
     --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
     --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
     --indicesDir /media/data/Daniel/data/indices \
@@ -30,7 +30,7 @@ for dir in $(ls /media/data2/Daniel/CDN3CANXX/); do
     --sex "F" \
     --condition "Bassoon-Knockout" \
     --treatment "treatment" \
-    | tee /media/data/Daniel/data/brandstaetter/Output/$dir.bassoon.pipeline.log.out
+    | tee /media/data2/Daniel/Output/${dir}.pipeline.log.out
 done
 
 # For every single cell sample create one directory with the sequencing files
