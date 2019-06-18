@@ -9,7 +9,6 @@
 #           4. PCA, tSNE
 #           5. Marker genes for sequenced cell types
 
-# TODO: Add FeatureCounts in Pipeline and start.pipeline
 # TODO: ADD HTSeq-count
 # TODO: Change Variable names for feature counts and rsem --> umi-tools count
 # TODO: Start R-script from pipeline
@@ -221,7 +220,6 @@ echo "Create multiple directories in $OUTPUT"
 make_dir $OUTPUT 
 make_dir $TRIMDIR 
 make_dir $FASTQCDIR   
-make_dir $RSEMOUT 
 make_dir $OUTPUT  
 make_dir $INDICESDIR  
 make_dir $STARDIR 
@@ -246,6 +244,7 @@ for file in ${FILES[@]}; do
     R1_LANES=${BASH_REMATCH[3]}
     R1_FORMAT=${BASH_REMATCH[4]}
     R1_ZIP=${BASH_REMATCH[5]}
+    
     NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
     if [[ $R1_ZIP == ".gz" ]]; then
       echo "Decompress gz compressed File: $file"
@@ -258,6 +257,9 @@ for file in ${FILES[@]}; do
     fi
     R1_ARRAY+=($NEWFILE_R1)
     R1=${MERGED}/${R1_SAMPLE}_ALL_${BARCODE}_001.${R1_FORMAT}
+#######
+    R1_ZIP=""
+#######
   elif [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R2_SAMPLE=${BASH_REMATCH[2]}
     R2_LANES=${BASH_REMATCH[3]}
@@ -274,9 +276,15 @@ for file in ${FILES[@]}; do
       BZ2COMPRESSED+=($NEWFILE_R2)
     fi
     R2_ARRAY+=($NEWFILE_R2)
+#######
+    R2_ZIP=""
+#######
     R2=${MERGED}/${R2_SAMPLE}_ALL_${READ}_001.${R2_FORMAT}
   fi 
 done
+
+R1_LANES="_ALL_"
+R2_LANES="_ALL_"
 
 if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
   R2=${R2_ARRAY}
@@ -332,12 +340,12 @@ echo "Umi-Tools: $R2"
 echo "Using Umi-Tools to extract Barcode"
 date 
 EXT="_extracted"
-R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
+R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}
 WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
-R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
+R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}
 
 # if w != 1 -> no umi_tools whitelist
-w="no"
+w="yes"
 if [[ $w == "yes" ]]; then
   # Identify correct cell barcodes
   echo "Identify correct cell barcodes with Umi-Tools!"
@@ -360,7 +368,9 @@ if [[ $w == "yes" ]]; then
     --read2-in $R2 \
     --read2-out $R2_EXT \
     --quality-encoding="phred33" \
+    --quality-filter-threshold 15 \
     --filter-cell-barcode \
+    --error-correct-cell \
     --whitelist=$WHITELIST
 
   echo "END Umi-Tools extract: $R1 and $R2"
@@ -376,12 +386,14 @@ else
     --stdout $R1_EXT \
     --read2-in $R2 \
     --read2-out $R2_EXT \
-    --quality-filter-mask=15 \
-    --quality-encoding="phred33" \
+    --quality-filter-threshold 15 
   echo "END Umi-Tools extract: $R1 and $R2"
   echo "Stored: $R1_EXT and $R2_EXT"
   date
 fi
+echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
+echo "exit now, because of exit!"
+exit
 
 # Trimming 10x sequencing read2
 if [[ $TRIMMING == "yes" ]]; then
@@ -394,7 +406,7 @@ if [[ $TRIMMING == "yes" ]]; then
   java -jar $TRIMMOMATIC \
     SE -phred33 $R2_EXT $R2_TRIM \
     -threads ${THREADS} \
-    LEADING:20 TRAILING:20 HEADCROP:10 MINLEN:75 
+    LEADING:20 TRAILING:20 MINLEN:75 
   echo "Finished trimming!"
   echo "Stored trimmed reads in $R2_TRIM"
 date
@@ -496,8 +508,7 @@ if [[ $R2_ZIP == ".bz2" ]]; then
     --readFilesIn $R2_TRIM \
     --readFilesCommand bunzip2 -c \
     --outSAMtype BAM Unsorted \
-    --outFileNamePrefix $R2_STAROUT \
-    --quantMode TranscriptomeSAM 
+    --outFileNamePrefix $R2_STAROUT 
   echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
 elif [[ $R2_ZIP == ".gz" ]]; then
   echo "gzipped"
@@ -506,8 +517,7 @@ elif [[ $R2_ZIP == ".gz" ]]; then
     --readFilesIn $R2_TRIM \
     --readFilesCommand gunzip -c \
     --outSAMtype BAM Unsorted \
-    --outFileNamePrefix $R2_STAROUT \
-    --quantMode TranscriptomeSAM
+    --outFileNamePrefix $R2_STAROUT 
   echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
 elif [[ $R2_ZIP == "" ]]; then
   echo "unzip"
@@ -515,8 +525,7 @@ elif [[ $R2_ZIP == "" ]]; then
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $R2_TRIM \
     --outSAMtype BAM Unsorted \
-    --outFileNamePrefix $R2_STAROUT \
-    --quantMode TranscriptomeSAM
+    --outFileNamePrefix $R2_STAROUT 
   echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
 else
   echo "$R2_TRIM has the wrong format"
@@ -524,67 +533,6 @@ else
 fi
 echo "Finished STAR Alignment!"
 date
-
-echo "Start Quantification with RSEM"
-# create RSEM reference
-if [[ $RSEMREF == "no" ]]; then
-  echo "Prepare Reference with RSEM"
-  echo $ANNOTATION
-  if [[ $ANNOTATION =~ ^.*/(.*)(\..*)$ ]]; then
-    ANNONAME=${BASH_REMATCH[1]}
-    FORMAT=${BASH_REMATCH[2]}
-    PREP_REF=$RSEMREFDIR/$ANNONAME
-
-    if [[ $FORMAT == ".gtf" ]]; then
-      ${RSEM}rsem-prepare-reference --gtf ${ANNOTATION} \
-        ${GENOME} \
-        ${PREP_REF}
-    elif [[ $FORMAT == ".gff" ]]; then
-      ${RSEM}rsem-prepare-reference --gff ${ANNOTATION} \
-        ${GENOME} \
-        ${PREP_REF}
-    else
-      echo "$ANNOTATION has the wrong format. GFF and GTF Format accepted"
-      help_message
-    fi
-    echo "Prepare Reference with RSEM: DONE!"
-    echo "Reference Files are stored in ${PREP_REF}"
-  fi
-  echo "Finished generating RSEM reference!"
-  date
-else
-  echo "Skipped preparing reference with RSEM"
-  PREP_REF=${RSEMREFDIR}
-fi
-
-
-# remove unzipped annotation file - restore original file structure
-if [[ $ANNOZIP == 1 ]]; then
-  echo "Remove unzipped annotation file"
-  rm $ANNOTATION
-fi
-
-# Quantification step with RSEM function: rsem-calculate-expression
-r=1
-if [[ $r == 0 ]]; then
-  RSEMINPUT="${R2_STAROUT}Aligned.toTranscriptome.out.bam"
-  file_exists $RSEMINPUT
-  echo "Quantification with RSEM: ${RSEMINPUT}"
-  RSEMOUTFILE=${RSEMOUT}/$(basename $RSEMINPUT .out.bam)
-  echo "RSEM file prefix: $RSEMOUTFILE"
-  ${RSEM}/rsem-calculate-expression \
-    -p $THREADS \
-    --quiet \
-    --alignments ${RSEMINPUT} \
-    ${PREP_REF} \
-    $RSEMOUTFILE
-  echo "Finished: RSEM rsem-calculate-expression $RSEMINPUT"
-  date
-  TRANSCRIPT_BAM=${RSEMOUTFILE}.transcript.bam
-  GENOME_BAM=${RSEMOUTFILE}.genes.bam
-  $RSEM/rsem-tbam2gbam $PREP_REF $TRANSCRIPT_BAM $GENOME_BAM
-  SAMOUTPUT=${RSEMOUTFILE}.genes.sorted.bam
-fi
 
 f=0
 # Count reads per gene with featureCounts
@@ -646,6 +594,11 @@ done
 
 echo "Finished: Compress Files"
 date
+# remove unzipped annotation file - restore original file structure
+if [[ $ANNOZIP == 1 ]]; then
+  echo "Remove unzipped annotation file"
+  rm $ANNOTATION
+fi
 echo "End of Pipeline"
 exit
 
