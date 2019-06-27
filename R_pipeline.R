@@ -162,7 +162,7 @@ SO <- RunPCA(SO, features = VariableFeatures(SO))
 print(SO[["pca"]], dims = 1:5, nfeatures = 5)
 
 
-VizDimLoadings(SO, dims = 1:2, redutction = "pca")
+VizDimLoadings(SO, dims = 1:2, reduction = "pca")
 
 DimPlot(SO, reduction = "pca")
 
