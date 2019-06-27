@@ -109,6 +109,10 @@ do
       STAROPTIONS="$2"
       shift
       ;;
+    --whitelist)
+      WHITELIST="$2"
+      shift
+      ;;
     *)
       echo -e "ERROR: \"${option}\" is an unknown option!"
       help_message
@@ -281,6 +285,15 @@ if [[ $QC == "yes" ]]; then
   echo "Quality Control of ${R2}"
   $FASTQC -o $FASTQCDIR -t $THREADS ${R2}
   echo "Performed quality control"
+fi
+
+WHITEZIP=0
+if [[ $WHITELIST =~ .*.gz ]]
+then
+  echo "unzip whitelist: $WHITELIST"
+  gunzip --keep "${WHITELIST}"
+  WHITELIST=$(echo "${WHITELIST}" | sed 's/.gz$//')
+  WHITEZIP=1
 fi
 
 # Umi-Tools
@@ -528,6 +541,11 @@ date
 if [[ $ANNOZIP == 1 ]]; then
   echo "Remove unzipped annotation file"
   rm $ANNOTATION
+fi
+# Remove unzipped whitelist file
+if [[ $WHITEZIP == 1 ]]; then
+  echo "Remove unzipped whitelist file: $WHITELIST"
+  rm $WHITELST
 fi
 echo "End of Pipeline"
 
