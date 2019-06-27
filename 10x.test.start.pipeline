@@ -15,21 +15,13 @@ for dir in $(ls /media/data2/Daniel/CDN3CANXX/); do
     --samtools /media/data/Daniel/src/anaconda3/bin/samtools \
     --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \
     --fastqc /media/data/tools/FastQC/fastqc \
-    --RSEM /media/data/tools/RSEM-1.3.1/ \
     --HTSeq /media/data/tools/anaconda3/lib/python3.7/site-packages/HTSeq/scripts/count.py \
     --featureCounts /media/data/tools/subread-1.6.4-Linux-x86_64/bin/featureCounts \
     --STAR /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
     --index "y" \
     --threads 4 \
-    --rsemResult "genes" \
-    --rsemRef "yes" \
-    --rsemRefDir /media/data/Daniel/data/RSEM/ref/Mus_musculus.GRCm38.96 \
-    --bamFiles "no" \
     --impute "no" \
-    --animal "mouse" \
-    --sex "F" \
-    --condition "Bassoon-Knockout" \
-    --treatment "treatment" \
+    --whitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/3M-february-2018.txt.gz \
     | tee /media/data2/Daniel/Output/${dir}.pipeline.log.out
 done
 

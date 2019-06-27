@@ -101,57 +101,24 @@ do
       STAR="$2"
       shift
       ;;
-    --RSEM)
-      RSEM="$2"
-      shift
-      ;;
     --featureCounts)
       FEATURECOUNTS="$2"
-      shift
-      ;;
-    --rsemResult) # use "gene" or "isoform" counts for downstream analyses
-      RSEMRESULT="$2" # gene counts = "genes" --- isoform counts ="isoforms"
-      shift
-      ;;
-    --rsemRef)
-      RSEMREF="$2" # "no": create rsemref in RSEMREFDIR,
-                   # "yes": specify ref path and prefix in --rsemRefDir
-      shift
-      ;;
-    --rsemRefDir)
-      RSEMREFDIR="$2" # directory for Rsem Reference [Default: "$RSEMOUT/ref"]
-      shift
-      ;;
-    --bamFiles)
-      BAMFILES="$2" # "no": Alignment, "yes": specify bam file directory
-      shift
-      ;;
-    --bamSuffix)
-      BAMSUFFIX="$2" # use this bam suffix ["Aligned.toTranscriptome.out.bam"]
       shift
       ;;
     --impute)
       IMPUTE="$2" # "no": no imputation, "yes": imputation 
       shift
       ;;
-    --animal) # Metadata information: used animal for scRNA-seq
-      ANIMAL="$2"
-      shift
-      ;;
-    --sex) # Metadata information: sex of the animal
-      SEX="$2" 
-      shift
-      ;;
-    --condition) # Metadata information: genetic or physical condition
-      CONDITION="$2"
-      shift
-      ;;
-    --treatment) # Metadata information: control or treatment groups?
-      TREATMENT="$2"
-      shift
-      ;;
     --output) # Output directory
       OUTPUT="$2"
+      shift
+      ;;
+    --trimOptions) # Output directory
+      TRIMOPTIONS="$2"
+      shift
+      ;;
+    --starOptions) # Output directory
+      STAROPTIONS="$2"
       shift
       ;;
     *)
@@ -193,24 +160,16 @@ file_exists (){
   fi
 }
 
-# check, if all arguments were passed to the Pipeline
-EXPECTEDARGS=(PROJECT GENOME ANNOTATION INDICESDIR GENOMEINDEX DATA THREADS \
-    TRIMMOMATIC FASTQC STAR RSEM RSEMRESULT RSEMREF BAMFILES IMPUTE ANIMAL SEX \
-    CONDITION TREATMENT OUTPUT)
-ARGARRAY=($PROJECT $GENOME $ANNOTATION $INDICESDIR $GENOMEINDEX $DATA $THREADS \
-    $TRIMMOMATIC $FASTQC $STAR $RSEM $RSEMRESULT $RSEMREF $BAMFILES $IMPUTE \
-    $ANIMAL $SEX $CONDITION $TREATMENT $OUTPUT)
     
-if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
-  echo "One or multiple argument/s is/are missing!"
-  help_message
-fi
+# if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
+#   echo "One or multiple argument/s is/are missing!"
+#   help_message
+# fi
 
 # create directories for essential outputs  
 TRIMDIR=$OUTPUT/trimmomatic_output 
 FASTQCDIR=$OUTPUT/FastQC_output    
 STARDIR=$OUTPUT/STAR_output    
-RSEMOUT=$OUTPUT/RSEM_output    
 MULTIQCDIR=$OUTPUT/MultiQC_output  
 UMITOOLSDIR=${OUTPUT}/Umi-Tools
 COUNTS=${OUTPUT}/counts
@@ -223,7 +182,6 @@ make_dir $FASTQCDIR
 make_dir $OUTPUT  
 make_dir $INDICESDIR  
 make_dir $STARDIR 
-make_dir $RSEMREFDIR
 make_dir $UMITOOLSDIR 
 make_dir $COUNTS
 make_dir $MERGED
@@ -238,14 +196,29 @@ GZCOMPRESSED=()
 BZ2COMPRESSED=()
 echo "Start: Concatenating all Fastq files of a sample"
 date
+
+# Lanes to use: "all"
+# Lanes to use: 1,2,3,4,5
+
+if [[ $LANES == "all" ]]; then
+  use_lanes="[0-9]*"
+else
+  OIFS=$IFS
+  IFS=","
+  use_lanes=($LANES)
+  IFS=$OIFS
+fi
+
+
 for file in ${FILES[@]}; do
+  for lane in ${use_lanes[@]}; do
   if [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R1_SAMPLE=${BASH_REMATCH[2]}
     R1_LANES=${BASH_REMATCH[3]}
     R1_FORMAT=${BASH_REMATCH[4]}
     R1_ZIP=${BASH_REMATCH[5]}
     
-    NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
+    NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}${R1_ZIP}
     if [[ $R1_ZIP == ".gz" ]]; then
       echo "Decompress gz compressed File: $file"
       gunzip $file 
@@ -257,58 +230,12 @@ for file in ${FILES[@]}; do
     fi
     R1_ARRAY+=($NEWFILE_R1)
     R1=${MERGED}/${R1_SAMPLE}_ALL_${BARCODE}_001.${R1_FORMAT}
-#######
-    R1_ZIP=""
-#######
   elif [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
     R2_SAMPLE=${BASH_REMATCH[2]}
     R2_LANES=${BASH_REMATCH[3]}
     R2_FORMAT=${BASH_REMATCH[4]}
     R2_ZIP=${BASH_REMATCH[5]}
-    NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}
-    if [[ $R2_ZIP == ".gz" ]]; then
-      echo "Decompress gz compressed File: $file"
-      gunzip $file 
-      GZCOMPRESSED+=($NEWFILE_R2)
-    elif [[ $R2_ZIP == ".bz2" ]]; then
-      echo "Decompress bzip2 compressed File: $file"
-      bzip2 -d $file
-      BZ2COMPRESSED+=($NEWFILE_R2)
-    fi
-    R2_ARRAY+=($NEWFILE_R2)
-#######
-    R2_ZIP=""
-#######
-    R2=${MERGED}/${R2_SAMPLE}_ALL_${READ}_001.${R2_FORMAT}
-  fi 
-done
-
-R1_LANES="_ALL_"
-R2_LANES="_ALL_"
-
-if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
-  R2=${R2_ARRAY}
-  R1=${R1_ARRAY}
-  echo "Only one sequencing file"
-elif [[ ${#R2_ARRAY[@]} -gt 1 ]]; then
-  echo "Concatenate Read 1 Files"
-  cat ${R1_ARRAY[@]} > $R1
-  echo "Concatenate Read 2 Files"
-  cat ${R2_ARRAY[@]} > $R2
-else
-  echo "No read file is stored in $DATA!"
-  help_message
-fi
-echo "Finished: Stored Fastq file in $MERGED"
-
-
-if [[ $QC = "no" ]]; then
-  echo "Don't perform Quality Control with FastQC"
-elif [[ $QC == "yes" ]]; then
-  echo "Perform Quality Control with FastQC"
-else
-  echo "Perform Quality Control?"
-  echo "'yes' | 'no'"
+    NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}${R2_ZIP}
   exit
 fi
 
@@ -340,12 +267,12 @@ echo "Umi-Tools: $R2"
 echo "Using Umi-Tools to extract Barcode"
 date 
 EXT="_extracted"
-R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}
+R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
 WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
-R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}
+R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
 
-# if w != 1 -> no umi_tools whitelist
-w="yes"
+# if w != yes -> no umi_tools whitelist
+w="no"
 if [[ $w == "yes" ]]; then
   # Identify correct cell barcodes
   echo "Identify correct cell barcodes with Umi-Tools!"
@@ -392,8 +319,6 @@ else
   date
 fi
 echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
-echo "exit now, because of exit!"
-exit
 
 # Trimming 10x sequencing read2
 if [[ $TRIMMING == "yes" ]]; then
@@ -423,6 +348,54 @@ if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
   date
 fi
 
+
+# ANNOZIP=0: annotation file is unzipped, ANNOZIP=1: annotation file was zipped
+ANNOZIP=0
+# gunzip gzipped annotation file --- expects a .gtf annotation file
+if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
+  file_exists $ANNOTATION
+  ANNOTATION_unzipped=$(echo "${ANNOTATION}" | sed 's/.gz$//')
+  if [[ -f $ANNOTATION_unzipped ]]; then
+    ANNOTATION=$ANNOTATION_unzipped
+  else
+    echo  "gunzip annotation file ${ANNOTATION}"
+    gunzip --keep "${ANNOTATION}"
+    ANNOZIP=1
+    ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
+    echo "Finished unzipping annotation file"
+    date
+  fi
+fi
+echo Annotation File = "${ANNOTATION}"
+
+# Trimming 10x sequencing read2
+if [[ $TRIMMING == "yes" ]]; then
+  echo "Start trimming reads with Trimmomatic!"
+  echo "Input: $R2_EXT"
+  echo "OUTPUT: R2_TRIM"
+  date
+  TRIM="_trim"
+  R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
+  java -jar $TRIMMOMATIC \
+    SE -phred33 $R2_EXT $R2_TRIM \
+    -threads ${THREADS} \
+    $TRIM_OPTIONS
+  echo "Finished trimming!"
+  echo "Stored trimmed reads in $R2_TRIM"
+  date
+else
+  R2_TRIM="${R2_EXT}"
+fi
+
+# Quality Control of trimmed single end files with FastQC
+if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
+  echo "Start Quality control: $R2_TRIM"
+  date
+  $FASTQC -o $FASTQCDIR -t $THREADS ${R2_TRIM}
+  echo "Finished quality control: $R2_TRIM"
+  date
+fi
+
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
 then
@@ -436,12 +409,17 @@ ANNOZIP=0
 # gunzip gzipped annotation file --- expects a .gtf annotation file
 if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
   file_exists $ANNOTATION
-  echo  "gunzip annotation file ${ANNOTATION}"
-  gunzip --keep "${ANNOTATION}"
-  ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
-  ANNOZIP=1
-  echo "Finished unzipping annotation file"
-  date
+  ANNOTATION_unzipped=$(echo "${ANNOTATION}" | sed 's/.gz$//')
+  if [[ -f $ANNOTATION_unzipped ]]; then
+    ANNOTATION=$ANNOTATION_unzipped
+  else
+    echo  "gunzip annotation file ${ANNOTATION}"
+    gunzip --keep "${ANNOTATION}"
+    ANNOZIP=1
+    ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
+    echo "Finished unzipping annotation file"
+    date
+  fi
 fi
 
 
@@ -462,8 +440,7 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
     $STAR --runMode genomeGenerate \
       --genomeDir "${INDICESDIR}" \
       --genomeFastaFiles "${GENOME}" \
-      --runThreadN ${THREADS} \
-      --quantMode TranscriptomeSAM
+      --runThreadN ${THREADS}
   else
     if [[ $ANNOTATION =~ .*\.gtf ]]; then
       echo "Run genomeGenerate with gtf annotation file"
@@ -471,16 +448,14 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
         --genomeDir "${INDICESDIR}" \
         --sjdbGTFfile "${ANNOTATION}" \
         --genomeFastaFiles "${GENOME}" \
-        --runThreadN ${THREADS} \
-        --quantMode TranscriptomeSAM
+        --runThreadN ${THREADS}
     elif [[ $ANNOTATION =~ .*\.gff ]]; then
       echo "Run genomeGenerate with gff annotation file"
       $STAR --runmode genomeGenerate \
         --genomeDir "${INDICESDIR}" \
         --sjdbGTFtagExonParentTranscript Parent \
         --genomeFastaFiles "${GENOME}" \
-        --runThreadN "${THREADS}" \
-        --quantMode TransriptomeSAM 
+        --runThreadN "${THREADS}"
     else
       echo "Annotation file ${ANNOTATION} has the wrong format"
       echo "Enter .gtf or .gtf annotation file"
@@ -515,48 +490,6 @@ elif [[ $R2_ZIP == ".gz" ]]; then
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $R2_TRIM \
-    --readFilesCommand gunzip -c \
-    --outSAMtype BAM Unsorted \
-    --outFileNamePrefix $R2_STAROUT 
-  echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
-elif [[ $R2_ZIP == "" ]]; then
-  echo "unzip"
-  $STAR --runThreadN $THREADS \
-    --genomeDir "${INDICESDIR}" \
-    --readFilesIn $R2_TRIM \
-    --outSAMtype BAM Unsorted \
-    --outFileNamePrefix $R2_STAROUT 
-  echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
-else
-  echo "$R2_TRIM has the wrong format"
-  help_message
-fi
-echo "Finished STAR Alignment!"
-date
-
-f=0
-# Count reads per gene with featureCounts
-if [[ $f == 0 ]]; then
-  INPUT=${R2_STAROUT}Aligned.out.bam
-  COUNTOUT=${COUNTS}/$(basename $INPUT out.bam)counts.txt
-  echo "Start counting features with featureCounts!"
-  echo "Input: $INPUT"
-  echo "Output: $COUNTOUT"
-  $FEATURECOUNTS \
-    -a $ANNOTATION \
-    -o $COUNTOUT \
-    -R BAM $INPUT \
-    -T ${THREADS}
-  SAMINPUT=${INPUT}.featureCounts.bam
-  SAMOUTPUT=$COUNTS/$(basename $COUNTOUT counts.txt)Aligned.out.featureCounts.sorted.bam  
-fi
-
-echo "Start: Samtools sort!"
-echo "Input: $SAMINPUT"
-echo "Output: $SAMOUTPUT"
-date
-$SAMTOOLS sort --threads ${THREADS} ${SAMINPUT} \
-  -o ${SAMOUTPUT}
 echo "Finished: Samtools sort!"
 date
 echo "Start: Samtools index"
@@ -600,70 +533,4 @@ if [[ $ANNOZIP == 1 ]]; then
   rm $ANNOTATION
 fi
 echo "End of Pipeline"
-exit
-
-echo RSEM output files = "${RSEMOUTPUTFILES[@]}"
-
-METADATA="${OUTPUT}/${PROJECT}.cells.metadata.txt"
-CELLCOUNTS="${OUTPUT}/${PROJECT}.cells.counts.txt"
-GENEINF="${OUTPUT}/${PROJECT}.gene.information.txt"
-TEMP="${OUTPUT}/${PROJECT}.cells.counts.temp.txt"
-
-i=0
-for file in "${RSEMOUTPUTFILES[@]}"; do
-  echo "Generate Metadata file for $file"
-  CELL=$(basename $file)
-  RSEMOUTPUT="${file}.${RSEMRESULT}.results"
-  if [[ $i == 0 ]]; then
-    if [[ ! -f ${CELLCOUNTS} ]]; then
-      awk -v cell="$CELL" 'NR==1 {print $1,cell} NR>1 {print $1,$5}' $RSEMOUTPUT \
-        > "${CELLCOUNTS}"
-    else
-      paste $CELLCOUNTS \
-        <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) \
-        > ${TEMP}
-      cat ${TEMP} > ${CELLCOUNTS}
-      rm ${TEMP}
-    fi
-    if [[ ! -f $GENEINF ]]; then
-      awk '{print $1,$3}' $RSEMOUTPUT > ${GENEINF}
-    fi
-    if [[ ! -f $METADATA ]]; then
-      echo -e "cell\tanimal\tsex\tcondition\ttreatment" > ${METADATA}
-    fi
-    echo -e "$(basename $file)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" \
-      >> "${METADATA}"
-    i=1
-  else
-    echo -e "$(basename $file)\t${ANIMAL}\t${SEX}\t${CONDITION}\t${TREATMENT}" \
-      >> ${METADATA}
-    paste $CELLCOUNTS \
-      <(awk -v cell="$CELL" 'NR==1 {print cell} NR>1 {print $5}' $RSEMOUTPUT) \
-      > $TEMP
-    cat $TEMP > $CELLCOUNTS
-    rm $TEMP
-  fi
-done
-
-# If imputation is requested: Perform imputation on the raw count table
-if [[ $IMPUTE =~ yes|Yes|YES|Y|y ]]; then
-  echo "Perform imputation with scImpute to reduce dropouts."
-  if [[ -z ${IMPUTOUT+x} ]]; then
-    DIR=$(dirname "${CELLCOUNTS}")
-    BASE=$(basename "${CELLCOUNTS}")
-    IMPOUTPUT=$DIR/imputed.$BASE
-  fi
-  echo "Perform imputation on count table ${CELLCOUNTS}: Store in $IMPOUTPUT."
-  Rscript impute_counts.R $CELLCOUNTS $IMPOUTPUT
-fi
-
-# shell script finished -- start R Pipeline
-# Generating Heatmaps, PCA, tSNE, 
-# Find Marker genes
-# Do Differential expression analysis 
-echo "Generated count table. Stored in ${CELLCOUNTS}."
-echo "Generated metadata file. Stored in ${METADATA}."
-echo "Start Quality Control and Normalization with scater and scran in R!"
-Rscript R_pipeline.R $CELLCOUNTS $METADATA
-
 
