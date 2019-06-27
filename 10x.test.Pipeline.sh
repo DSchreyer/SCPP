@@ -65,10 +65,6 @@ do
       BARCODE="$2"
       shift
       ;;
-    --num-cells) # Number of cells sequenced per sample
-      NUMCELLS="$2"
-      shift
-      ;;
     --threads) # how many threads are available
       THREADS="$2"
       shift
@@ -103,10 +99,6 @@ do
       ;;
     --featureCounts)
       FEATURECOUNTS="$2"
-      shift
-      ;;
-    --impute)
-      IMPUTE="$2" # "no": no imputation, "yes": imputation 
       shift
       ;;
     --output) # Output directory
@@ -186,7 +178,7 @@ make_dir $UMITOOLSDIR
 make_dir $COUNTS
 make_dir $MERGED
 
-# Concatenate fastq files together
+# Sequencing files
 FILES=$(ls -d $DATA/*)
 
 # READ1 stores each fastq file with barcodes and umis, READ2 contains cDNA read
@@ -200,46 +192,83 @@ date
 # Lanes to use: "all"
 # Lanes to use: 1,2,3,4,5
 
-if [[ $LANES == "all" ]]; then
+if [ $LANES == "all" ] || [ $LANES == "" ]; then
   use_lanes="[0-9]*"
+  LANES="all"
 else
   OIFS=$IFS
   IFS=","
   use_lanes=($LANES)
   IFS=$OIFS
+  LANES=$(echo $LANES | sed 's/,/_/g')
 fi
 
 
 for file in ${FILES[@]}; do
   for lane in ${use_lanes[@]}; do
-  if [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-    R1_SAMPLE=${BASH_REMATCH[2]}
-    R1_LANES=${BASH_REMATCH[3]}
-    R1_FORMAT=${BASH_REMATCH[4]}
-    R1_ZIP=${BASH_REMATCH[5]}
-    
-    NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}${R1_ZIP}
-    if [[ $R1_ZIP == ".gz" ]]; then
-      echo "Decompress gz compressed File: $file"
-      gunzip $file 
-      GZCOMPRESSED+=($NEWFILE_R1)
-    elif [[ $R1_ZIP == ".bz2" ]]; then
-      echo "Decompress bzip2 compressed File: $file"
-      bzip2 -d $file
-      BZ2COMPRESSED+=($NEWFILE_R1)
+    if [[ lane != "[0-9]{3}" ]]; then
+      lane=$(printf "L%03d" $lane)
     fi
-    R1_ARRAY+=($NEWFILE_R1)
-    R1=${MERGED}/${R1_SAMPLE}_ALL_${BARCODE}_001.${R1_FORMAT}
-  elif [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-    R2_SAMPLE=${BASH_REMATCH[2]}
-    R2_LANES=${BASH_REMATCH[3]}
-    R2_FORMAT=${BASH_REMATCH[4]}
-    R2_ZIP=${BASH_REMATCH[5]}
-    NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}${R2_ZIP}
-  exit
+
+    if [[ $file =~ ^(.*)/(.*)(_L${lane}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+      R1_SAMPLE=${BASH_REMATCH[2]}
+      R1_LANES=${BASH_REMATCH[3]}
+      R1_FORMAT=${BASH_REMATCH[4]}
+      R1_ZIP=${BASH_REMATCH[5]}
+      NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}${R1_ZIP}
+      if [[ $R1_ZIP == ".gz" ]]; then
+        echo "Decompress gz compressed File: $file"
+        gunzip $file 
+        GZCOMPRESSED+=($NEWFILE_R1)
+      elif [[ $R1_ZIP == ".bz2" ]]; then
+        echo "Decompress bzip2 compressed File: $file"
+        bzip2 -d $file
+        BZ2COMPRESSED+=($NEWFILE_R1)
+      fi
+      R1_ARRAY+=($NEWFILE_R1)
+      break
+    elif [[ $file =~ ^(.*)/(.*)(_L[0-9]{3}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+      R2_SAMPLE=${BASH_REMATCH[2]}
+      R2_LANES=${BASH_REMATCH[3]}
+      R2_FORMAT=${BASH_REMATCH[4]}
+      R2_ZIP=${BASH_REMATCH[5]}
+      NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}${R2_ZIP}
+      break
+    fi
+  done
+done
+
+R1=${MERGED}/${R1_SAMPLE}_${LANES}_${BARCODE}_001.${R1_FORMAT}
+R2=${MERGED}/${R2_SAMPLE}_${LANES}_${READ}_001.${R2_FORMAT}
+
+if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
+  R2=${R2_ARRAY}
+  R1=${R1_ARRAY}
+  echo "Only one sequencing file"
+elif [[ ${#R2_ARRAY[@]} -gt 1 ]]; then
+  echo "Concatenate Read 1 Files"
+  cat ${R1_ARRAY[@]} > $R1
+  echo "Concatenate Read 2 Files"
+  cat ${R2_ARRAY[@]} > $R2
+  echo "Concatenate ${R2_ARRAY[@]}"
+else
+  echo "No read file is stored in $DATA!"
+  help_message
 fi
+echo "Finished: Stored Fastq file in $MERGED"
 
+echo "Compress previous compressed files"
+for file in ${GZCOMPRESSED[@]}; do
+  echo "Gzip File: $file"
+  gzip $file
+done
 
+for file in ${BZ2COMPRESSED[@]}; do
+  echo "Bz2 File: $file"
+  bzip2 $file
+done
+
+echo "Finished: Compress Files"
 TRIMMING="no"
 if [[ $TRIMMING = "no" ]]; then
   echo "Don't perform Trimming with Trimmomatic"
@@ -260,21 +289,9 @@ fi
 
 # Umi-Tools
 # Identify correct cell barcodes
-
-EXTRACTED_UMIS=()
-DEMUX_FILES=()
-echo "Umi-Tools: $R2"
-echo "Using Umi-Tools to extract Barcode"
-date 
-EXT="_extracted"
-R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
-WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
-R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
-
-# if w != yes -> no umi_tools whitelist
-w="no"
-if [[ $w == "yes" ]]; then
-  # Identify correct cell barcodes
+umi_whitelist="no"
+if [[ umi_whitelist == "yes" ]]; then
+  WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
   echo "Identify correct cell barcodes with Umi-Tools!"
   echo "START Umi-Tools whitelist: $R1"
   date
@@ -285,114 +302,81 @@ if [[ $w == "yes" ]]; then
     --log2stderr > $WHITELIST
   echo "END Umi-Tools whitelist: $R1" 
   date
-  echo "Extract barcodes and UMIs and add to read names"
-  echo "START Umi-Tools extract: $R1 and $R2"
-  date
-  $UMITOOLS extract \
-    --stdin $R1 \
-    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-    --stdout $R1_EXT \
-    --read2-in $R2 \
-    --read2-out $R2_EXT \
-    --quality-encoding="phred33" \
-    --quality-filter-threshold 15 \
-    --filter-cell-barcode \
-    --error-correct-cell \
-    --whitelist=$WHITELIST
-
-  echo "END Umi-Tools extract: $R1 and $R2"
-  echo "Stored: $R1_EXT and $R2_EXT"
-  date
-else
-  echo "Extract barcodes and UMIs and add to read names"
-  echo "START Umi-Tools extract: $R1 and $R2"
-  date
-  $UMITOOLS extract \
-    --stdin $R1 \
-    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-    --stdout $R1_EXT \
-    --read2-in $R2 \
-    --read2-out $R2_EXT \
-    --quality-filter-threshold 15 
-  echo "END Umi-Tools extract: $R1 and $R2"
-  echo "Stored: $R1_EXT and $R2_EXT"
-  date
-fi
-echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
-
-# Trimming 10x sequencing read2
-if [[ $TRIMMING == "yes" ]]; then
-  echo "Start trimming reads with Trimmomatic!"
-  echo "Input: $R2_EXT"
-  echo "OUTPUT: R2_TRIM"
-  date
-  TRIM="_trim"
-  R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
-  java -jar $TRIMMOMATIC \
-    SE -phred33 $R2_EXT $R2_TRIM \
-    -threads ${THREADS} \
-    LEADING:20 TRAILING:20 MINLEN:75 
-  echo "Finished trimming!"
-  echo "Stored trimmed reads in $R2_TRIM"
-date
-else
-  R2_TRIM="${R2_EXT}"
 fi
 
-# Quality Control of trimmed single end files with FastQC
-if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
-  echo "Start Quality control: $R2_TRIM"
-  date
-  $FASTQC -o $FASTQCDIR -t $THREADS ${R2_TRIM}
-  echo "Finished quality control: $R2_TRIM"
-  date
-fi
+if [[ $use_umi == "yes" ]]; then
+  EXTRACTED_UMIS=()
+  DEMUX_FILES=()
+  echo "Umi-Tools: $R2"
+  echo "Using Umi-Tools to extract Barcode"
+  date 
+  EXT="_extracted"
+  R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
+  R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
 
+  # if w != yes -> no umi_tools whitelist
+  if [[ $umi_whitelist == "yes" ]]; then
+    echo "Extract barcodes and UMIs and add to read names"
+    echo "START Umi-Tools extract: $R1 and $R2"
+    date
+    $UMITOOLS extract \
+      --stdin $R1 \
+      --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+      --stdout $R1_EXT \
+      --read2-in $R2 \
+      --read2-out $R2_EXT \
+      --quality-encoding="phred33" \
+      --quality-filter-threshold 15 \
+      --filter-cell-barcode \
+      --error-correct-cell \
+      --whitelist=$WHITELIST
 
-# ANNOZIP=0: annotation file is unzipped, ANNOZIP=1: annotation file was zipped
-ANNOZIP=0
-# gunzip gzipped annotation file --- expects a .gtf annotation file
-if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
-  file_exists $ANNOTATION
-  ANNOTATION_unzipped=$(echo "${ANNOTATION}" | sed 's/.gz$//')
-  if [[ -f $ANNOTATION_unzipped ]]; then
-    ANNOTATION=$ANNOTATION_unzipped
+    echo "END Umi-Tools extract: $R1 and $R2"
+    echo "Stored: $R1_EXT and $R2_EXT"
+    date
   else
-    echo  "gunzip annotation file ${ANNOTATION}"
-    gunzip --keep "${ANNOTATION}"
-    ANNOZIP=1
-    ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
-    echo "Finished unzipping annotation file"
+    echo "Extract barcodes and UMIs and add to read names"
+    echo "START Umi-Tools extract: $R1 and $R2"
+    date
+    $UMITOOLS extract \
+      --stdin $R1 \
+      --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+      --stdout $R1_EXT \
+      --read2-in $R2 \
+      --read2-out $R2_EXT \
+      --quality-filter-threshold 15 
+    echo "END Umi-Tools extract: $R1 and $R2"
+    echo "Stored: $R1_EXT and $R2_EXT"
     date
   fi
+  echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
+  R1=$R1_EXT
+  R2=$R2_EXT
 fi
-echo Annotation File = "${ANNOTATION}"
-
 # Trimming 10x sequencing read2
 if [[ $TRIMMING == "yes" ]]; then
   echo "Start trimming reads with Trimmomatic!"
-  echo "Input: $R2_EXT"
+  echo "Input: $R2"
   echo "OUTPUT: R2_TRIM"
   date
   TRIM="_trim"
   R2_TRIM=$TRIMDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}_001.${R2_FORMAT}${R2_ZIP}
   java -jar $TRIMMOMATIC \
-    SE -phred33 $R2_EXT $R2_TRIM \
+    SE -phred33 $R2 $R2_TRIM \
     -threads ${THREADS} \
     $TRIM_OPTIONS
   echo "Finished trimming!"
   echo "Stored trimmed reads in $R2_TRIM"
   date
-else
-  R2_TRIM="${R2_EXT}"
+  R2=${R2_TRIM}
 fi
 
 # Quality Control of trimmed single end files with FastQC
 if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
-  echo "Start Quality control: $R2_TRIM"
+  echo "Start Quality control: $R2"
   date
-  $FASTQC -o $FASTQCDIR -t $THREADS ${R2_TRIM}
-  echo "Finished quality control: $R2_TRIM"
+  $FASTQC -o $FASTQCDIR -t $THREADS ${R2}
+  echo "Finished quality control: $R2"
   date
 fi
 
@@ -467,66 +451,83 @@ if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
   date
 fi
 
+R2_STAROUT=$STARDIR/$(basename $R2 fastq)
 
-echo "Start STAR alignment: $R2_TRIM"
-if [[ $TRIMMING == "yes" ]]; then
-  R2_STAROUT=$STARDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}${TRIM}.
+if [[ $use_umi == "yes" ]]; then
+  echo "Start STAR alignment: $R2"
   echo "STAR Output = $R2_STAROUT"
-else
-  R2_STAROUT=$STARDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}.
-fi
-
-if [[ $R2_ZIP == ".bz2" ]]; then
-  echo "bzipped"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
-    --readFilesIn $R2_TRIM \
-    --readFilesCommand bunzip2 -c \
+    --readFilesIn $R2 \
     --outSAMtype BAM Unsorted \
     --outFileNamePrefix $R2_STAROUT 
-  echo "Saved STAR output of $R2_TRIM in $R2_STAROUT"
-elif [[ $R2_ZIP == ".gz" ]]; then
-  echo "gzipped"
+  echo "Saved STAR output of $R2 in $R2_STAROUT"
+  echo "Finished STAR Alignment!"
+  date
+else
+  echo "Start STARsolo: Mapping, Demultiplexing and gene quantification"
+  echo "Input: $R1"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
-    --readFilesIn $R2_TRIM \
-echo "Finished: Samtools sort!"
+    --readFilesIn $R2 $R1 \
+    --outSAMtype BAM Unsorted \
+    --outFileNamePrefix $R2_STAROUT \
+    --soloType Droplet \
+    --soloCBwhitelist $WHITELIST
+fi
+
+use_featureCounts="no"
+# Count reads per gene with featureCounts
+if [[ $use_featureCounts == "yes" && $use_umi == "yes" ]]; then
+  INPUT=${R2_STAROUT}Aligned.out.bam
+  COUNTOUT=${COUNTS}/$(basename $INPUT out.bam)counts.txt
+  echo "Start counting features with featureCounts!"
+  echo "Input: $INPUT"
+  echo "Output: $COUNTOUT"
+  $FEATURECOUNTS \
+    -a $ANNOTATION \
+    -o $COUNTOUT \
+    -R BAM $INPUT \
+    -T ${THREADS}
+  SAMINPUT=${INPUT}.featureCounts.bam
+  SAMOUTPUT=$COUNTS/$(basename $COUNTOUT counts.txt)Aligned.out.featureCounts.sorted.bam  
+  echo "Start: Samtools sort!"
+  echo "Input: $SAMINPUT"
+  echo "Output: $SAMOUTPUT"
+  date
+  $SAMTOOLS sort --threads ${THREADS} ${SAMINPUT} \
+    -o ${SAMOUTPUT}
+  echo "Finished: Samtools sort!"
+  date
+  echo "Start: Samtools index"
+  echo "Input: $SAMOUTPUT"
+  $SAMTOOLS index $SAMOUTPUT
+  file_exists ${SAMOUTPUT}
+  echo "Finished: Samtools index"
+
+
+  COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
+  echo "Start: Demultiplexing counts with Umi-tools count!"
+  echo "Input: $SAMOUTPUT"
+  echo "Output: $COUNTFILE"
+  date
+
+  $UMITOOLS count --per-gene \
+    --gene-tag=XT --assigned-status-tag=XS \
+    --wide-format-cell-counts \
+    --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
+
+  echo "Finished: Umi-tools count"
+  echo "Stored count table in $COUNTFILE"
+  date
+fi
+
+echo "Gzip File: $R1 and $R2"
 date
-echo "Start: Samtools index"
-echo "Input: $SAMOUTPUT"
-$SAMTOOLS index $SAMOUTPUT
-file_exists ${SAMOUTPUT}
-echo "Finished: Samtools index"
-
-
-COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
-echo "Start: Demultiplexing counts with Umi-tools count!"
-echo "Input: $SAMOUTPUT"
-echo "Output: $COUNTFILE"
+gzip $R1 $R2
+echo "Finished: Gzip File $R1 and $R2"
 date
 
-$UMITOOLS count --per-gene \
-  --gene-tag=XT --assigned-status-tag=XS \
-  --wide-format-cell-counts \
-  --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
-
-echo "Finished: Umi-tools count"
-echo "Stored count table in $COUNTFILE"
-date
-
-echo "Compress previous compressed files"
-for file in ${GZCOMPRESSED[@]}; do
-  echo "Gzip File: $file"
-  gzip $file
-done
-
-for file in ${BZ2COMPRESSED[@]}; do
-  echo "Bz2 File: $file"
-  bzip2 $file
-done
-
-echo "Finished: Compress Files"
-date
 # remove unzipped annotation file - restore original file structure
 if [[ $ANNOZIP == 1 ]]; then
   echo "Remove unzipped annotation file"
