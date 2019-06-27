@@ -33,10 +33,6 @@ do
       QC="$2"
       shift # shift arguments to the left = $2 -> $1
       ;;
-    --projectName) # Project name to generate specific file names
-      PROJECT="$2"
-      shift # shift arguments to the left = $2 -> $1
-      ;;
     --genome) # reference genome file
       GENOME="$2"
       shift 
@@ -81,7 +77,7 @@ do
       TRIMMOMATIC="$2"
       shift
       ;;
-    --HTSeq) # executable HTSeq
+    --htseq) # executable HTSeq
       HTSEQ="$2"
       shift
       ;;
@@ -93,7 +89,7 @@ do
       MULTIQC="$2"
       shift
       ;;
-    --STAR)
+    --star)
       STAR="$2"
       shift
       ;;
