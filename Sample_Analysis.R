@@ -1,8 +1,3 @@
-# This is an example analysis of the sample 221934
-# filter cells with less than 100 genes expressed --> do able with this sample
-
-
-library(Matrix)
 library(Seurat)
 library(scater)
 library(scran)
@@ -11,21 +6,36 @@ library(ggpubr)
 library(UpSetR)
 library(ggsci)
 library(tidyr)
-library(DropletUtils)
 
 # Project name: Don't use special symbols for project name: /?^%$ --> Is used for file names
-project = "221934_BL6J_Ex45"
+sample <- "221940"
+path.to.cellranger.outs <- paste("/media/data2/Daniel/cellranger_output/", sample, "/outs/", sep = "/")
+project <- sample
+seq <- c(seq(0.01,0.1,0.01), seq(0.12, 0.4, 0.02))
+
+f <- paste0(project, ".umi_count_", 100, ".markers.supervised.txt")
+write(paste("Project:", project, sep = " "), file = f)
 
 # Read in sparse matrix with cellranger output
 # data.dir = path to cellranger output matrix.mtx, features.tsv, barcodes.tsv
-data.dir = "/media/data2/Daniel/cellranger_output/221934/outs/raw_feature_bc_matrix/"
+data.dir = paste(path.to.cellranger.outs, "/raw_feature_bc_matrix/", sep = "/")
 data <- Read10X(data.dir = data.dir, gene.column = 2, unique.features = TRUE)
 
-keep.features <- Matrix::rowSums(data > 0) >= 20
-keep.cells <- Matrix::colSums(data > 0) >= 100
+data
+write(paste("Data:", data.dir, sep = " "), file = f, append = TRUE)
+write(paste("Before:", dim(data), c("genes", "cells"), sep = " "), file = f, append = TRUE)
+write(paste("Filter Umi Count:", filter.umi.count, "| filter features:", filter.feature.expr.cells, sep = " ", ), file = f, append = TRUE)
+
+
+filter.umi.count <- 100
+filter.feature.expr.cells <- ncol(data)*0.005
+keep.features <- Matrix::rowSums(data > 0) >= filter.feature.expr.cells
+keep.cells <- Matrix::colSums(data) >= filter.umi.count
 
 data <- data[keep.features, keep.cells]
 dim(data)
+write(paste("Filter cells and genes:", dim(data), c("genes","cells"), "left.", sep = " "), file = f, append = TRUE)
+
 
 # Create SingleCellExperiment object with sparse matrix
 sce <- SingleCellExperiment(assays = list(counts = data))
@@ -34,13 +44,7 @@ sce <- SingleCellExperiment(assays = list(counts = data))
 is.mito <- grepl("^mt-", rownames(sce))
 # quality control with caluclateQCMetrics
 sce <- calculateQCMetrics(sce, exprs_values = "counts",
-                          feature_controls = list(MT = is.mito))
-
-# Remove cells with fewer than 50 expressed genes
-# remove genes with fewer than 20 expressed cells
-# keep.cells <- sce$total_features_by_counts >= 50
-# keep.features <- nexprs(sce, byrow = TRUE) >= 20
-# sce <- sce[keep.features, keep.cells]
+                                                    feature_controls = list(MT = is.mito))
 
 # Drop below and above 3 median absolute deviations: libsize, mitochondrial gene count, expressed genes
 libsize.drop <- isOutlier(sce$total_counts, nmads = 3, type = "higher", log = T)
@@ -49,6 +53,8 @@ mito.drop <- isOutlier(sce$pct_counts_MT, nmads = 3, type = "higher")
 
 sce <- sce[, !(libsize.drop | feature.drop | mito.drop)]
 dim(sce)
+write(paste("Filter after libsize, feature count, mt expr:", dim(sce), c("genes", "cells"), "left.", sep = " "), file = f, append = TRUE)
+
 
 # normalize with scater function normalize using library sizes as size factors
 sce <- normalize(sce)
@@ -79,15 +85,63 @@ pdf(paste(project, ".2.pdf", sep = ""))
 # Cluster cells to 2,3,4,5 different clusters
 # 3 cell clusters optimal
 # check ElbowPlot for high variance pc
-res = 0.4
-dims = 1:8
-Bsn <- FindNeighbors(Bsn, dims = dims)
-Bsn <- FindClusters(Bsn, resolution = res)
-markers <- FindAllMarkers(Bsn, only.pos = T, logfc.threshold = 0.25)
 
-write.table(markers, file = paste0(project, "all.markers.txt"))
+seq <- c(seq(0.01,0.1,0.01), seq(0.12, 0.34, 0.02))
 
-# table(Bsn$RNA_snn_res.0.4)
+dims <- 5:10
+for (dim in dims){
+    Bsn <- FindNeighbors(Bsn, dims = 1:dim, verbose = F)
+  for (res in seq){
+        Bsn <- FindClusters(Bsn, resolution = res, verbose = F)
+      markers <- FindAllMarkers(Bsn, only.pos = T, logfc.threshold = 0.1, verbose = F)
+          n.cluster <- length(levels(Idents(Bsn)))
+          if (ncol(markers) > 0){
+                  markers <- markers %>% select(gene, p_val, avg_logFC, p_val_adj, cluster)
+              }
+              n.cells.cluster <- table(Idents(Bsn))
+              head <- paste("Dims:", dim, "|", "resolution:", res, "|", "cluster:", n.cluster, sep = " ")
+                  print(head)
+                  if (ncol(markers) > 0){
+                          print(markers %>% group_by(cluster) %>% top_n(-4, p_val_adj))
+                      }
+                      print(n.cells.cluster)
+                      write(head, file = f, append = T)
+                          write.table(markers, file = f, append = TRUE, quote = F, col.names = T, row.names = F)
+                          write("Number of cells in each cluster:", file = f, append = TRUE)
+                              write.table(n.cells.cluster, file = f, append = TRUE, quote = F, col.names = F)
+                              write("", file = f, append = T)
+                                }
+}
+
+
+f2 <- paste0(project, "umi_count_", filter.umi.count, ".only_variable_genes.markers.txt")
+write(paste("Project:", project, sep = " "), file = f2)
+write(paste("Data:", data.dir, sep = " "), file = f2, append = TRUE)
+
+Bsn <- FindNeighbors(Bsn, features = VariableFeatures(object = Bsn), verbose = F)
+
+for (res in seq){
+    Bsn <- FindClusters(Bsn, resolution = res,verbose = F)
+  markers <- FindAllMarkers(Bsn, only.pos = T, logfc.threshold = 0.1, verbose = F)
+    n.cluster <- length(levels(Idents(Bsn)))
+    if (ncol(markers) > 0){
+          markers <- markers %>% select(gene, p_val, avg_logFC, p_val_adj, cluster)
+      }
+      n.cells.cluster <- table(Idents(Bsn))
+        head <- paste("Only Variable Features. Resolution:", res, "|", "cluster:", n.cluster, sep = " ")
+        print(head)
+          if (ncol(markers) > 0){
+                print(markers %>% group_by(cluster) %>% top_n(-4, p_val_adj))
+          }
+          print(n.cells.cluster)
+            write(head, file = f2, append = T)
+            write.table(markers, file = f2, append = TRUE, quote = F, col.names = T, row.names = F)
+              write("Number of cells in each cluster:", file = f2, append = TRUE)
+              write.table(n.cells.cluster, file = f2, append = TRUE, quote = F, col.names = F)
+                write("", file = f2, append = T)
+}
+
+
 
 # Run UMAP and tSNE
 Bsn <- RunUMAP(Bsn, dims = dims)
@@ -122,28 +176,26 @@ marker.df <- marker.df %>% gather("marker", "count", 1:l.markers);
 
 k <- 1;
 for (k in 1:5){
-  z <- marker.df %>% dplyr::group_by(cluster, marker) %>% 
-  dplyr::summarise(pos=length(which(count>=k)), total=n()) %>%
-  dplyr::mutate(percent=pos/total*100);
-  z$cluster <- as.factor(z$cluster);
-  print(z)
-
-  p <- ggplot(z, aes(x=cluster, y=percent)) +
-  geom_bar(stat="identity", position="dodge", width=0.9, aes(fill=marker));
-  p <- p + theme_bw();
-  p <- p + theme(text=element_text(colour="black"), axis.title=element_text(size=12), 
-                 axis.text.x=element_text(colour="black", size=12), 
-                 axis.text.y=element_text(colour="black", size=12));
-  p <- p + labs(y="Percent", x="") + ggtitle(paste("Cells with", k, "or more reads"));
-  p <- p + scale_fill_npg();
-  p <- p + theme(legend.position="bottom");
-  p <- p + theme(plot.title=element_text(hjust=0.5));
-  print(p);
-  z <- marker.df %>% dplyr::mutate(threshold=ifelse(count>=k, 1, 0)) %>% 
-  dplyr::select(-count) %>% tidyr::spread(marker, threshold);
-  z$cluster <- NULL;
-  z$cell <- NULL;
-  u <- upset(z)
-  print(u)
+    z <- marker.df %>% dplyr::group_by(cluster, marker) %>% 
+    dplyr::summarise(pos=length(which(count>=k)), total=n()) %>% dplyr::mutate(percent=pos/total*100);
+      z$cluster <- as.factor(z$cluster);
+      print(z)
+        
+        p <- ggplot(z, aes(x=cluster, y=percent)) + geom_bar(stat="identity", position="dodge", width=0.9, aes(fill=marker));
+        p <- p + theme_bw();
+          p <- p + theme(text=element_text(colour="black"), axis.title=element_text(size=12), 
+                                          axis.text.x=element_text(colour="black", size=12), 
+                                                           axis.text.y=element_text(colour="black", size=12));
+          p <- p + labs(y="Percent", x="") + ggtitle(paste("Cells with", k, "or more reads"));
+            p <- p + scale_fill_npg();
+            p <- p + theme(legend.position="bottom");
+              p <- p + theme(plot.title=element_text(hjust=0.5));
+              print(p);
+                z <- marker.df %>% dplyr::mutate(threshold=ifelse(count>=k, 1, 0)) %>% 
+                  dplyr::select(-count) %>% tidyr::spread(marker, threshold);
+                z$cluster <- NULL;
+                  z$cell <- NULL;
+                  u <- upset(z)
+                    print(u)
 }
 dev.off()
