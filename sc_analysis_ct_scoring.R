@@ -1,10 +1,41 @@
 library(Seurat)
-library(scater)
-library(scran)
-library(dplyr)
-library(tidyr)
 library(Matrix)
 
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
+
+samples <- paste0("Bsn.", seq(221931, 221940))
+
+ReadCountMetrices <- function(
+  dir,
+  log.counts = TRUE,
+  samples,
+  counts = "log.counts.mtx",
+  feature = "features.txt",
+  barcode = "barcodes.txt"
+){
+  seurat.objects <- list()
+  ls <- list.files(dir)
+  for (sample in samples){
+    ind <- grep(pattern = sample, ls)
+    count.file <- grep(counts, ls[ind], value = TRUE)
+    feature.file <- grep(feature, ls[ind], value = TRUE)
+    barcode.file <- grep(barcode, ls[ind], value = TRUE)
+    count.table <- readMM(count.file)
+    features <- read.csv(feature.file, stringsAsFactors = F, header = F)
+    barcodes <- read.csv(barcode.file, stringsAsFactors = F, header = F)
+    rownames(count.table) <- features$V1
+    colnames(count.table) <- barcodes$V1
+    seurat.object <- CreateSeuratObject(project = sample, counts = count.table)
+    if (!log.counts){
+      seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+    }
+    seurat.objects[[sample]] <- seurat.object
+  }
+  return(seurat.objects)
+}
+
+seurat.object.list <- ReadCountMetrices(dir = input.dir, log.counts = TRUE, samples = samples)
 
 # CellTypeScoring function is based on ScoreCellCycle function from Seurat
 # Input are marker genes of 2 different cell types and it scores each cell based on the marker gene expression level
@@ -62,39 +93,29 @@ CellTypeScoring <- function(
   return(object)
 }
 
-# normalize with scater function normalize using library sizes as size factors
-# sce <- normalize(sce)
-# plotHighestExprs(sce)
-# plotExpression(sce, features = c("Rho", "Opn1sw", "Opn1mw", "Arr3", "Nrl", "Gnat2"))
 
-
-# Load into Seurat objet
-Bsn <- as.Seurat(sce, data = "counts", assay = "RNA", counts = "counts", project = sample)
-
-raw.counts <- Bsn[["RNA"]]@counts
-
-# normalize the data
-Bsn <- NormalizeData(Bsn, normalization.method = "LogNormalize", scale.factor = 1000)
 
 # Alex approved Markers
 rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1")
 cone.markers <- c("Opn1sw", "Opn1mw", "Arr3", "Gnat2", "Pde6h", "Gngt2", "Gnb3")
 
 
-Bsn <- CellTypeScoring(object = Bsn, type.1 = "Cone", type.2 = "Rod", type.1.features = cone.markers,
-                   type.2.features = rod.markers, name = "Cell Type")
-
-CellType <- as.vector(Bsn@meta.data$CellType)
-barcodes <- colnames(raw.counts)
-features <- rownames(raw.counts)
-
-cell.type <- cbind(barcodes, CellType)
-
-# write feature list, barcode list, and raw count table to a file
-write(features, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".features.txt"))
-write.table(cell.type, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".barcode.celltype.csv"), sep = ",", quote = F, row.names = F)
-writeMM(raw.counts, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".logcounts.mtx"))
+for (seurat.object in seurat.object.list){
+  seurat.object <- CellTypeScoring(object = seurat.object, type.1 = "Cone", type.2 = "Rod", type.1.features = cone.markers,
+                         type.2.features = rod.markers, name = "Cell Type")
+  celltype <- as.vector(seurat.object@meta.data$CellType)
+  count.table <- GetAssayData(seurat.object)
+  barcodes <- colnames(count.table)
+  features <- rownames(count.table)
+  sample <- seurat.object@project.name
+  write(features, file =  paste0(output.dir, sample, ".features.txt"))
+  write(barcodes, file =  paste0(output.dir, sample, ".barcodes.txt"))
+  write(celltype, file =  paste0(output.dir, sample, ".celltype.txt"))
+  writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
 }
+rm(seurat.object, celltype, count.table, barcodes, features, sample)
+# write feature list, barcode list, and raw count table to a file
+
 
 
 

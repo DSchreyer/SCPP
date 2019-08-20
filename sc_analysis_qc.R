@@ -9,7 +9,7 @@ library(Matrix)
 # path.to.cellranger.outs <- paste("/media/data2/Daniel/cellranger_output/", sample, "/outs/", sep = "/")
 
 # Read in sparse matrix with cellranger output
-data.dir = paste(path.to.cellranger.outs, "/raw_feature_bc_matrix/", sep = "/")
+# data.dir = paste(path.to.cellranger.outs, "/raw_feature_bc_matrix/", sep = "/")
 
 # cluster
 # data.dir <- "/media/data2/Daniel/cellranger_aggr/AGG_Bsn/outs/raw_feature_bc_matrix/"
@@ -17,7 +17,7 @@ data.dir = paste(path.to.cellranger.outs, "/raw_feature_bc_matrix/", sep = "/")
 
 # laptop
 data.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/R_output"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
 
 # Create Output Directory
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
@@ -151,9 +151,11 @@ WriteCountMetrices <- function(
       sce <- geneFiltering(object = sce, gene.expr = 0.001)
     }
     features <- rownames(sce)
+    barcodes <- colnames(sce)
     write(features, file = paste0(sample, ".features.txt"))
+    write(barcodes, file = paste0(sample, ".barcodes.txt"))
     writeMM(counts(sce), file = paste0(sample, ".raw.counts.mtx"))
-    writeMM(log.counts, file = paste0(sample, "log.counts.mtx"))
+    writeMM(log.counts, file = paste0(sample, ".log.counts.mtx"))
     print(paste(sample, "Done"))
   }
 }
