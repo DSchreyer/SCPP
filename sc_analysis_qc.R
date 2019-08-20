@@ -23,44 +23,52 @@ output.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/R_
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
 setwd(output.dir)
 
-n.samples <- 10
 sample.names <- paste0("Bsn.", seq(221931,221940))
-
 
 generateCountTables <- function(
   aggr.dir,
   umi.count = 100,
-  sample.names = seq(1,n.samples)
+  expressed.genes = 0,
+  sample.names = NULL
 ){
   data <- Read10X(data.dir = aggr.dir, gene.column = 2, unique.features = TRUE)
   
-  umi.count <- umi.count
+  if (is.null(sample.names)){
+    m <- regexpr("-.*", colnames(data), perl = TRUE)
+    n.samples <- length(unique(regmatches(x = colnames(data), m)))
+    sample.names <- paste0("sample", as.character(seq(1, n.samples)))
+  } else {
+    n.samples <- length(sample.names)
+  }
+  
   filter.umi.count <- Matrix::colSums(data) >= umi.count
   data <- data[ , filter.umi.count]
   
-  all.count.tables <- lapply(c(as.character(seq(1,n.samples))),
+  filter.expressed.genes <- Matrix::colSums(data > 0) >= expressed.genes
+  data <- data[ , filter.expressed.genes]
+  
+  all.count.tables <- lapply(c(as.character(seq(1, n.samples))),
                              function(x) data[, grep(x, colnames(data))])
   names(all.count.tables) <- sample.names
-  rm(data)
   return(all.count.tables)
 }
 
-count.tables <- GenerateCountTables(aggr.dir = data.dir, umi.count = 120, sample.names = sample.names)
+count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 120, expressed.genes = 100, sample.names = sample.names)
 
 
 qcControl <- function(
   count.tables,
-  MAD = 3,
-  feature.expr = 0.01
+  MAD = 3, 
+  sample.names = names(count.tables)
 ){
+  if (is.null(sample.names)){
+    sample.names <- paste0("sample", as.character(seq(1, length(count.tables))))
+  }
   i <- 1
   sce.list <- list()
   for (count.table in count.tables){
-    sample <- names(count.tables)[i]
+    sample <- sample.names[i]
     i <- i + 1
-    filter.feature.expr.cells <- ncol(count.table)*feature.expr
-    keep.features <- Matrix::rowSums(count.table > 0) >= filter.feature.expr.cells
-    count.table <- count.table[keep.features, ]
     # Create SingleCellExperiment object with sparse matrix
     sce <- SingleCellExperiment(assays = list(counts = count.table))
     
@@ -78,39 +86,76 @@ qcControl <- function(
     mito.drop <- isOutlier(sce$pct_counts_MT, nmads = MAD, type = "higher")
     
     sce <- sce[, !(libsize.drop | feature.drop | mito.drop)]
-  
-    # Normalize counts with Deconvolution method
-    sce <- computeSumFactors(sce, min.mean = 0.1)
-    
-    # Remove cells with negative size factors 
-    neg.size.factors <- sizeFactors(sce) < 0 
-    sce <- sce[, !neg.size.factors]
-    
-    sce <- normalize(sce, return_log = FALSE)
-    
-    # Transform counts to natural log counts
-    logcounts(sce) <- as(log(normcounts(sce) + 1), "sparseMatrix")
-    
-    features <- rownames(sce)
-    # write count matrix and feature list to file
+
     sce.list[[sample]] <- sce
+    print(paste(sample, "Done"))
   }
-  rm(features, libsize.drop, feature.drop, mito.drop, is.mito, keep.features, sample,
-     filter.feature.expr.cells, i, count.table)
   return(sce.list)
 }
 
-sce <- qcControl(count.tables = count.tables, MAD = 3, feature.expr = 0.001 )
+sce.list <- qcControl(count.tables = count.tables, MAD = 3, sample.names = names(count.tables))
 
 
-# write files
-write(features, file = paste0(sample, ".features.txt"))
-writeMM(normcounts(sce), file = paste0(sample, ".log.counts.mtx"))
-print(paste(sample, "Done"))
+geneFiltering <- function(
+  object,
+  gene.expr,
+  sample.names = names(object)
+){
+  if (is.list(object)){
+    obj.list <- list()
+    i <- 1
+    for (matrix in object){
+      filter.gene.expr.cells <- ncol(sce)*gene.expr
+      keep.features <- Matrix::rowSums(counts(matrix) > 0) >= filter.gene.expr.cells
+      matrix <- matrix[keep.features, ]
+      
+      sample <- sample.names[i]
+      obj.list[[sample]] <- matrix
+      i <- i + 1
+      print(paste(sample, "Done"))
+    }
+    return(obj.list)
+  } else {
+    matrix <- object
+    filter.gene.expr.cells <- ncol(matrix)*gene.expr
+    keep.features <- Matrix::rowSums(counts(matrix) > 0) >= filter.gene.expr.cells
+    matrix <- matrix[keep.features, ]
+    return(matrix)
+  }
+}
 
+WriteCountMetrices <- function(
+  sce.list,
+  log.normalize = TRUE,
+  filter.genes = TRUE,
+  sample.names = names(sce.list)
+){
+  i <- 1
+  for (sce in sce.list){
+    sample <- sample.names[i]
+    i <- i + 1
+    if (log.normalize){
+      seurat.object <- as.Seurat(sce, data = "counts")
+      seurat.object <- NormalizeData(seurat.object, 
+                                     normalization.method = "LogNormalize", 
+                                     scale.factor = 10000, 
+                                     verbose = FALSE)
+      log.counts <- GetAssayData(seurat.object)
+      if (filter.genes){
+        log.counts <- SingleCellExperiment(assays = list(counts = log.counts))
+        log.counts <- geneFiltering(log.counts, gene.expr = 0.001)
+        log.counts <- counts(log.counts)
+      }
+    }
+    if (filter.genes){
+      sce <- geneFiltering(object = sce, gene.expr = 0.001)
+    }
+    features <- rownames(sce)
+    write(features, file = paste0(sample, ".features.txt"))
+    writeMM(counts(sce), file = paste0(sample, ".raw.counts.mtx"))
+    writeMM(log.counts, file = paste0(sample, "log.counts.mtx"))
+    print(paste(sample, "Done"))
+  }
+}
 
-sce
-# deconvolution method normalization
-# larger dataset --> quick cluster
-sce <- normalize(sce, return_log = FALSE)
-sce <- as(log(normcounts(sce) + 1), "sparseMatrix")
+WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE)
