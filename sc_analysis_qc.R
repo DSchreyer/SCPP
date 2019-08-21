@@ -138,7 +138,7 @@ WriteCountMetrices <- function(
       seurat.object <- as.Seurat(sce, data = "counts")
       seurat.object <- NormalizeData(seurat.object, 
                                      normalization.method = "LogNormalize", 
-                                     scale.factor = 10000, 
+                                     scale.factor = 1000, 
                                      verbose = FALSE)
       log.counts <- GetAssayData(seurat.object)
       if (filter.genes){

@@ -28,7 +28,7 @@ ReadCountMetrices <- function(
     colnames(count.table) <- barcodes$V1
     seurat.object <- CreateSeuratObject(project = sample, counts = count.table)
     if (!log.counts){
-      seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 10000)
+      seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 1000)
     }
     seurat.objects[[sample]] <- seurat.object
   }
