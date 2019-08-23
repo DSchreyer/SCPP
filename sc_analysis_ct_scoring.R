@@ -112,6 +112,7 @@ for (seurat.object in seurat.object.list){
   write(barcodes, file =  paste0(output.dir, sample, ".barcodes.txt"))
   write(celltype, file =  paste0(output.dir, sample, ".celltype.txt"))
   writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
+  print(paste(sample, "Done"))
 }
 rm(seurat.object, celltype, count.table, barcodes, features, sample)
 # write feature list, barcode list, and raw count table to a file

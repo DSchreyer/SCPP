@@ -56,6 +56,7 @@ generateCountTables <- function(
 count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 120, expressed.genes = 100, sample.names = sample.names)
 
 
+
 qcControl <- function(
   count.tables,
   MAD = 3, 
@@ -79,9 +80,9 @@ qcControl <- function(
                               feature_controls = list(MT = is.mito))
     
     # Drop below and above 3 median absolute deviations: libsize, mitochondrial gene count, expressed genes
-    libsize.drop <- isOutlier(sce$total_counts, nmads = MAD, type = "both", log = T)
+    libsize.drop <- isOutlier(sce$total_counts, nmads = MAD, type = "higher", log = T)
     
-    feature.drop <- isOutlier(sce$total_features_by_counts, nmads = MAD, type = "both", log = T)
+    feature.drop <- isOutlier(sce$total_features_by_counts, nmads = MAD, type = "higher", log = T)
     
     mito.drop <- isOutlier(sce$pct_counts_MT, nmads = MAD, type = "higher")
     
@@ -93,8 +94,9 @@ qcControl <- function(
   return(sce.list)
 }
 
-sce.list <- qcControl(count.tables = count.tables, MAD = 3, sample.names = names(count.tables))
+sce.list <- qcControl(count.tables = count.tables, MAD = 5, sample.names = names(count.tables))
 
+lapply(sce.list, function(x) print(ncol(x)))
 
 geneFiltering <- function(
   object,
@@ -105,7 +107,7 @@ geneFiltering <- function(
     obj.list <- list()
     i <- 1
     for (matrix in object){
-      filter.gene.expr.cells <- ncol(sce)*gene.expr
+      filter.gene.expr.cells <- ncol(matrix)*gene.expr
       keep.features <- Matrix::rowSums(counts(matrix) > 0) >= filter.gene.expr.cells
       matrix <- matrix[keep.features, ]
       
@@ -161,3 +163,20 @@ WriteCountMetrices <- function(
 }
 
 WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE)
+
+### Compute Mean/Median Umi count and Mean/Median Gene Count
+samples <- c()
+median.umi <- c()
+median.gene <- c()
+mean.umi <- c()
+mean.gene <- c()
+for (sce in sce.filt){
+  median.umi <- c(median.umi, median(sce$total_counts))
+  median.gene <- c(median.gene, median(sce$total_features_by_counts))
+  mean.umi <- c(mean.umi, mean(sce$total_counts))
+  mean.gene <- c(mean.gene, mean(sce$total_features_by_counts))
+}
+
+table <- rbind(median.umi, mean.umi, median.gene, mean.gene)
+colnames(table) <- samples
+xtable(table)
