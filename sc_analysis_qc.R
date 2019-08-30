@@ -1,5 +1,4 @@
 library(scater)
-library(scran)
 library(Seurat)
 library(Matrix)
 

@@ -2,8 +2,9 @@
 library(Matrix)
 library(Seurat)
 library(tibble)
-# library(stringr)
 library(dplyr)
+library(xtable)
+library(enrichR)
 
 input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
 output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses/"
@@ -79,72 +80,188 @@ Idents(seurat.objects) <- seurat.objects$ct.gt
 subset <- subset(seurat.objects, subset  = CellType != "Unknown")
 
 
-
 # Compare Rods and Cones to each other --> Different vulnerability
 deg <- list()
-deg[["rod.cone.1"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod",
+deg[["rod.cone.wt.1"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod",
                                    ident.2 = "C57BL/6J_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["rod.cone.2"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Rod",
+deg[["rod.cone.wt.2"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Rod",
                                    ident.2 = "C57BL/6NJ_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
-# Compare Mutant and KO Cones to WTs
+deg[["rod.cone.mut"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod", 
+                               ident.2 = "C57BL/6J_Bsn_mut.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["rod.cone.ko"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_Bsn_KO.Rod", 
+                                     ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["cone.wt"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Cone", 
+                                  ident.2 = "C57BL/6NJ_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["rod.wt"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod", 
+                                ident.2 = "C57BL/6NJ_WT.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+
+
+# Compare rod vs. rod, cone vs. cone
+# mutant strain
+deg[["wt.mut.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod",
+                                    ident.2 = "C57BL/6J_Bsn_mut.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 deg[["wt.mut.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Cone",
                                     ident.2 = "C57BL/6J_Bsn_mut.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+
+# KO strain
+deg[["wt.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Rod",
+                                   ident.2 = "C57BL/6NJ_Bsn_KO.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 deg[["wt.ko.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Cone",
                                    ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
-# Compare Mutant to KO Cones
-deg[["mut.ko"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Cone", 
+
+# Compare Mutant to KO
+deg[["mut.ko.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Cone", 
                                ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["mut.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod", 
+                               ident.2 = "C57BL/6NJ_Bsn_KO.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
 
-library(enrichR)
+# Enrichment analysis
 dbs <- listEnrichrDbs()
 websiteLive <- ifelse(is.null(dbs), FALSE, TRUE)
 if (websiteLive) head(dbs)
 
-databases <- c("GO_Biological_Process_2018")
+databases <- c("GO_Biological_Process_2018", "KEGG_2019_Mouse", "MGI_Mammalian_Phenotype_Level_4_2019", "Mouse_Gene_Atlas", "GO_Molecular_Function_2018")
 
 enriched <- list()
 i <- 1
+
+deg.sep <- list()
 for (table in deg){
   name <- names(deg)[i]
   table$expr <- ifelse(table$avg_logFC > 0, "up", "down")
   up <- filter(table, expr == "up")
   down <- filter(table, expr == "down")
-  enriched[[paste(name, "up", sep = ".")]] <- enrichr(up$gene, databases)
-  enriched[[paste(name, "down", sep = ".")]] <- enrichr(down$gene, databases)
+  deg.sep[[paste(name, "up", sep = ".")]] <- up
+  deg.sep[[paste(name, "down", sep = ".")]] <- down
+  enriched.all <- enrichr(table$gene, databases)
+  enriched[[paste(name, "all", sep = ".")]] <- enriched.all
+  enriched.up <- enrichr(up$gene, databases)
+  enriched[[paste(name, "up", sep = ".")]] <- enriched.up
+  enriched.down <- enrichr(down$gene, databases)
+  enriched[[paste(name, "down", sep = ".")]] <- enriched.down
   i <- i + 1
 }
 
+## DEG TABLES WITHOUT COMMON GENES
+deg.filtered <- list()
+# Upregulated genes in mut cones to wt1
+table <- deg.sep$wt.mut.cone.down
+genes <- table$gene
+# Filter out genes, which are downregulated in wt cones
+genes <- setdiff(genes, deg.sep$cone.wt.down$gene)
+subset <- subset(table, gene %in% genes)
+deg.filtered[["mut.cone.up"]] <- subset
+
+# Upregulated genes in ko cones to wt2
+table <- deg.sep$wt.ko.cone.down
+genes <- table$gene
+# Filter out genes, which are downregulated in wt cones 2
+genes <- setdiff(genes, deg.sep$cone.wt2.down$gene)
+subset <- subset(table, gene %in% genes)
+deg.filtered[["ko.cone.up"]] <- subset
+
+# Upregulated genes in mut cones to ko cones
+table <- deg.sep$mut.ko.cone.up
+genes <- table$gene
+# Filter out genes, which are upregulated in wt cones
+genes <- setdiff(genes, deg.sep$cone.wt.up$gene)
+# Filter out genes, which are downregulated in ko vs wt
+genes <- setdiff(genes, deg.sep$wt.ko.cone.up$gene)
+subset <- subset(table, gene %in% genes)
+deg.filtered[["mut.ko.cone.up"]] <- subset
+
+# Upregulated genes in ko cones to mut cones
+table <- deg.sep$mut.ko.cone.down
+genes <- table$gene
+# Filter out genes, which are upregulated in wt cones
+genes <- setdiff(genes, deg.sep$cone.wt.down$gene)
+# Filter out genes, which are downregulated in ko vs wt
+genes <- setdiff(genes, deg.sep$wt.ko.cone.up$gene)
+subset <- subset(table, gene %in% genes)
+deg.filtered[["mut.ko.cone.down"]] <- subset
+
+
+
+dbs <- "KEGG_2019_Mouse"
+enr <- enrichr(deg$rod.cone.wt.1$gene, dbs)
+
+enrichr(setdiff(deg.sep$cone.wt.down$gene, deg.sep$wt.mut.cone.down$gene), dbs)
+
+enriched$rod.cone.wt.1.down$KEGG_2019_Mouse
+enriched$rod.cone.mut.down$KEGG_2019_Mouse
+enriched$wt.mut.cone.up$KEGG_2019_Mouse
+enriched$wt.mut.cone.down$KEGG_2019_Mouse
+
 write("", "enriched.csv")
 i <- 1
-for (table in enriched){
+length(names(enriched))
+for (comp in enriched){
   name <- names(enriched)[i]
-  table <- as.data.frame(table) %>% filter(GO_Biological_Process_2018.Adjusted.P.value < 0.1)
-  write(name, "enriched.csv", append = T)
-  write.table(table, "enriched.csv", append = T, sep = "\t", row.names = F)
-  write("", "enriched.csv", append = T)
+  j <- 1
+  print(name)
+  for (table in comp){
+    comp.name <- names(comp)[j]
+    table <- table %>% filter(Adjusted.P.value < 0.05)
+    write(name, "enriched.csv", append = T)
+    write(comp.name, "enriched.csv", append = T)
+    write.table(table, "enriched.csv", append = T, sep = "\t", row.names = F)
+    write("", "enriched.csv", append = T)
+    j <- j + 1
+  }  
   i <- i + 1
 }
 
 ### Generate Differentially Expressed Gene Tables
-names <- names(enriched)
+i <- 1
 for(table in deg){
+  if (i == 1){
+    names <- names(deg)
+    file <- "deg.enriched.tex"
+    write(x = "", file = file)
+    write(x = "", file = "deg.table.csv")
+  }
+  name <- names[i]
   table <- table %>% select(gene, p_val_adj, avg_logFC, pct.1, pct.2) %>% filter(p_val_adj < 0.05) %>% 
     arrange(p_val_adj)
   gene <- select(table, gene)
   p.adj <- table$p_val_adj
   p.adj <- formatC(p.adj, format = "e", digits = 3)
   table <- table %>% select(avg_logFC, pct.1, pct.2)
-  table <- cbind(gene, p.adj, table)
-  print(xtable(table, digits = 3), tabular.environment="longtable", floating = FALSE)
+  table$expr <- ifelse(table$avg_logFC > 0, "up", "down")
+  table <- cbind(gene, p.adj, table) %>% arrange(desc(expr, p_val_adj))
+  write(x = name, file = "deg.table.csv", append = T)
+  write.table(x = table, file = "deg.table.csv", append = T, sep = "\t", quote = F, row.names = F)
+  write(x = "", file = "deg.table.csv", append = T)
+  write(print(xtable(table, digits = 3), tabular.environment= "longtable", floating = FALSE), file = file, append = T)
+  for (enrich.df in enriched[[i]]){
+    enrich.df <- enrich.df %>% select(Term, Overlap, P.value, Adjusted.P.value, Genes) %>%
+      filter(Adjusted.P.value < 0.1)
+    write(print(xtable(enrich.df, digits = 3), tabular.environment = "longtable", floating = FALSE), file = file, append = T)
+  }
+  i <- i + 1
 }
+
+
+
+
+
+
+
 
 
 test <- enriched$GO_Biological_Process_2018
