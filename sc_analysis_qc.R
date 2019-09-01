@@ -59,7 +59,8 @@ count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 120, expres
 qcControl <- function(
   count.tables,
   MAD = 3, 
-  sample.names = names(count.tables)
+  sample.names = names(count.tables),
+  generate.info = TRUE
 ){
   if (is.null(sample.names)){
     sample.names <- paste0("sample", as.character(seq(1, length(count.tables))))
@@ -68,7 +69,6 @@ qcControl <- function(
   sce.list <- list()
   for (count.table in count.tables){
     sample <- sample.names[i]
-    i <- i + 1
     # Create SingleCellExperiment object with sparse matrix
     sce <- SingleCellExperiment(assays = list(counts = count.table))
     
@@ -77,25 +77,50 @@ qcControl <- function(
     # quality control with caluclateQCMetrics
     sce <- calculateQCMetrics(sce, exprs_values = "counts",
                               feature_controls = list(MT = is.mito))
-    
-    # Drop below and above 3 median absolute deviations: libsize, mitochondrial gene count, expressed genes
+    n.cells.pre <- ncol(sce)
+    # Drop cells above [n] median absolute deviations: libsize, mitochondrial gene count, expressed genes
     libsize.drop <- isOutlier(sce$total_counts, nmads = MAD, type = "higher", log = T)
-    
     feature.drop <- isOutlier(sce$total_features_by_counts, nmads = MAD, type = "higher", log = T)
-    
     mito.drop <- isOutlier(sce$pct_counts_MT, nmads = MAD, type = "higher")
-    
     sce <- sce[, !(libsize.drop | feature.drop | mito.drop)]
+    n.cells.post <- ncol(sce)
+    if (generate.info){
+      if (i == 1){
+        libsizes <- c()
+        featuredrops <- c()
+        mitodrops <- c()
+        before.qc <- c()
+        after.qc <- c()
+        samples <- c()
+        median.umi <- c()
+        median.gene <- c()
+        mean.umi <- c()
+        mean.gene <- c()
+      }
+      libsizes <- c(libsizes, sum(libsize.drop))
+      featuredrops <- c(featuredrops, sum(feature.drop))
+      mitodrops <- c(mitodrops, sum(mito.drop))
+      samples <- c(samples, sample)
+      before.qc <- c(before.qc, n.cells.pre)
+      after.qc <- c(after.qc, n.cells.post)
+      median.umi <- c(median.umi, median(sce$total_counts))
+      median.gene <- c(median.gene, median(sce$total_features_by_counts))
+      mean.umi <- c(mean.umi, mean(sce$total_counts))
+      mean.gene <- c(mean.gene, mean(sce$total_features_by_counts))
+    }
 
     sce.list[[sample]] <- sce
     print(paste(sample, "Done"))
+    i <- i + 1
   }
+  qc.info <<- cbind(before.qc, after.qc, libsizes, featuredrops, mitodrops, median.umi, median.gene, mean.umi, mean.gene)
+  qc.info <<- as.data.frame(qc.info)
+  qc.info$samples <<- samples
+  
   return(sce.list)
 }
-
 sce.list <- qcControl(count.tables = count.tables, MAD = 5, sample.names = names(count.tables))
 
-lapply(sce.list, function(x) print(ncol(x)))
 
 geneFiltering <- function(
   object,
@@ -170,10 +195,7 @@ median.gene <- c()
 mean.umi <- c()
 mean.gene <- c()
 for (sce in sce.filt){
-  median.umi <- c(median.umi, median(sce$total_counts))
-  median.gene <- c(median.gene, median(sce$total_features_by_counts))
-  mean.umi <- c(mean.umi, mean(sce$total_counts))
-  mean.gene <- c(mean.gene, mean(sce$total_features_by_counts))
+
 }
 
 table <- rbind(median.umi, mean.umi, median.gene, mean.gene)

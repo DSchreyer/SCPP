@@ -75,6 +75,18 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ
 
 seurat.objects$ct.gt <- paste(seurat.objects$genotype, seurat.objects$CellType, sep = ".")
 
+# sample 2: TSNE with Identified Populations
+sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
+sample <- FindVariableFeatures(sample)
+sample <- ScaleData(sample)
+sample <- RunPCA(sample)
+sample <- RunTSNE(sample, dims = 1:6)
+sample <- RunUMAP(sample, dims = 1:10)
+DimPlot(sample, reduction = "tsne")
+DimPlot(sample, reduction = "umap")
+
+
+
 Idents(seurat.objects) <- seurat.objects$ct.gt
 
 subset <- subset(seurat.objects, subset  = CellType != "Unknown")
