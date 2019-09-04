@@ -2,7 +2,9 @@ library(Seurat)
 library(Matrix)
 
 input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/test_ct_ident/"
+dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
+setwd(input.dir)
 
 samples <- paste0("Bsn.", seq(221931, 221940))
 
@@ -96,8 +98,8 @@ CellTypeScoring <- function(
 
 
 # Alex approved Markers
-rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1")
-cone.markers <- c("Opn1sw", "Opn1mw", "Arr3", "Gnat2", "Pde6h", "Gngt2", "Gnb3")
+rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1", "Crx", "Nrl", "Pde6a")
+cone.markers <- c("Opn1sw", "Opn1mw", "Arr3", "Gnat2", "Pde6h", "Gngt2", "Gnb3", "Rora")
 
 
 for (seurat.object in seurat.object.list){
@@ -114,6 +116,11 @@ for (seurat.object in seurat.object.list){
   writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
   print(paste(sample, "Done"))
 }
+
+Idents(seurat.object) <- celltype
+FindAllMarkers(seurat.object)
+
+
 rm(seurat.object, celltype, count.table, barcodes, features, sample)
 # write feature list, barcode list, and raw count table to a file
 

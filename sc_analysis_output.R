@@ -2,10 +2,12 @@ library(scater)
 library(Seurat)
 library(ggplot2)
 library(RColorBrewer)
-
+library(Matrix)
+library(tibble)
+library(dplyr)
 # SingleCellExperiment | Scater
 data.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/Tables_Graphs"
 
 # Create Output Directory
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
@@ -108,40 +110,58 @@ qcControl <- function(
 }
 sce.list <- qcControl(count.tables = count.tables, MAD = 5, sample.names = names(count.tables))
 
+seurat.objects$genotype <- NA
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221931"] <- "C57BL/6J_WT"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221932"] <- "C57BL/6J_WT"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221933"] <- "C57BL/6J_Bsn_mut"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221934"] <- "C57BL/6J_Bsn_mut"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221935"] <- "C57BL/6J_Bsn_mut"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221936"] <- "C57BL/6NJ_WT"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221937"] <- "C57BL/6NJ_WT"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221938"] <- "C57BL/6NJ_Bsn_KO"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221939"] <- "C57BL/6NJ_Bsn_KO"
+seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ_Bsn_KO"
 ## Generell sample overview with qc.info
 qc.info$samples <- as.character(seq(221931, 221940))
+qc.info$genotype <- c("C57BL/6J_WT", "C57BL/6J_WT", "C57BL/6J_Bsn_mut", "C57BL/6J_Bsn_mut", "C57BL/6J_Bsn_mut",
+                                 "C57BL/6NJ_WT", "C57BL/6NJ_WT", "C57BL/6NJ_Bsn_KO",  "C57BL/6NJ_Bsn_KO",  "C57BL/6NJ_Bsn_KO")
+qc.info$genotype <- factor(qc.info$genotype, levels = c("C57BL/6J_WT",  "C57BL/6J_Bsn_mut",  "C57BL/6NJ_WT",  "C57BL/6NJ_Bsn_KO"))
+
+
 # Plot: Samples on x-axis, total cells on y - axis
 # Plot: Samples on x-axis, total cells before + after qc
 
-ggplot(data = qc.info, aes(x = samples, y = before.qc, fill = samples)) + 
-  geom_bar(stat = "identity") + scale_fill_manual(values = colors) + 
-  theme_minimal() + theme(legend.position = "none") + 
+# colors <- c(rep("#A4BFEB", 2), rep("#8CABBE", 3), rep("#BBA0B2", 2), rep("#9D858D", 3))
+colors <- c("#A4BFEB", "#8CABBE", "#BBA0B2", "#9D858D")
+
+ggplot(data = qc.info, aes(x = samples, y = before.qc, fill = genotype)) + 
+  geom_bar(stat = "identity", colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() + 
   scale_y_continuous(limits = c(0,30000)) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1.1, vjust = 1.5))
   
-ggplot(data = qc.info, aes(x = samples, y = after.qc, fill = samples)) + 
-  geom_bar(stat = "identity") + scale_fill_manual(values = colors) + 
-  theme_minimal() + theme(legend.position = "none") + 
+ggplot(data = qc.info, aes(x = samples, y = after.qc, fill = genotype)) + 
+  geom_bar(stat = "identity", colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() +
   scale_y_continuous(limits = c(0,30000)) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1.1, vjust = 1.5))
 
 # Plot: Samples on x-axis, median.umi and median.gene on y-axis
-ggplot(data = qc.info, aes(x = samples, y = median.umi, fill = samples)) + 
-  geom_bar(stat = "identity") + scale_fill_manual(values = colors) + 
-  theme_minimal() + theme(legend.position = "none") + 
+ggplot(data = qc.info, aes(x = samples, y = median.umi, fill = genotype)) + 
+  geom_bar(stat = "identity", colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() + 
   scale_y_continuous(limits = c(0,200)) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1.1, vjust = 1.5))
 
-ggplot(data = qc.info, aes(x = samples, y = median.gene, fill = samples)) + 
-  geom_bar(stat = "identity") + scale_fill_manual(values = colors) + 
-  theme_minimal() + theme(legend.position = "none") + 
+ggplot(data = qc.info, aes(x = samples, y = median.gene, fill = genotype)) + 
+  geom_bar(stat = "identity", , colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() + 
   scale_y_continuous(limits = c(0,150)) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1.1, vjust = 1.5))
 
 
 
 
-colors <- c(rep("#A4BFEB", 2), rep("#8CABBE", 3), rep("#BBA0B2", 2), rep("#9D858D", 3))
 barplot(seq(1,10), col=colors)
 
 
@@ -210,6 +230,43 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221938"] <- "C57BL/6NJ
 seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221939"] <- "C57BL/6NJ_Bsn_KO"
 seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ_Bsn_KO"
 
+## Table with Number of cells, genes, median.umi, median.gene, rods, cones, unknown, proportions
+seurat.objects$genotype <- factor(seurat.objects$genotype, levels = c("C57BL/6J_WT",  "C57BL/6J_Bsn_mut",  "C57BL/6NJ_WT",  "C57BL/6NJ_Bsn_KO"))
+
+n.cells.genotype <- as.data.frame(table(seurat.objects$genotype))
+colnames(n.cells.genotype) <- c("Genotype", "n.cells")
+
+ggplot(data = n.cells.genotype, aes(x = Genotype, y = n.cells, fill = Genotype)) + 
+  geom_bar(stat = "identity", colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() + theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(0, 60000)) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.1))
+
+# Create tables with information
+file = "Bsn_info_table.csv"
+write.table(table(seurat.objects$CellType, seurat.objects$orig.ident), file = file, sep = " ", col.names = T)
+write.table(prop.table(table(seurat.objects$CellType, seurat.objects$orig.ident), margin = 2), file = file, sep = " ", append = T)
+write.table(table(seurat.objects$CellType), file = file, sep = " ", append = T)
+write.table(prop.table(table(seurat.objects$CellType)), file = file, sep = " ", append = T)
+write.table(table(seurat.objects$CellType, seurat.objects$genotype), file = file, sep = " ", append = T)
+write.table(table(seurat.objects$genotype), file = file, sep = " ", append = T)
+write.table(prop.table(table(seurat.objects$CellType, seurat.objects$genotype), margin = 2), file = file, append = T ,sep = " ")
+write.table(table(seurat.objects$orig.ident), file = file, append = T, sep = " ", col.names = T)
+
+# Without Unknown cells
+clean <- subset(seurat.objects, subset = CellType != "Unknown")
+write.table(table(clean$CellType, clean$orig.ident), file = file, append = T, sep = " ")
+write.table(prop.table(table(clean$CellType, clean$orig.ident), margin = 2), file = file, append = T, sep = " ")
+write.table(table(clean$CellType), file = file, append = T, sep = " ")
+write.table(prop.table(table(clean$CellType)), file = file, append = T, sep = " ")
+write.table(table(clean$CellType, clean$genotype), file = file, sep = " ", append = T)
+write.table(prop.table(table(clean$CellType, clean$genotype), margin = 2), file = file, append = T, sep = " ")
+write.table(table(clean$orig.ident), file = file, append = T, sep = " ", col.names = T)
+
+test <- clean@meta.data %>% group_by(orig.ident) %>% summarise(median = median(nFeature_RNA))
+
+
+
 # sample 2: TSNE with Identified Populations
 sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
 sample <- FindVariableFeatures(sample)
@@ -219,3 +276,29 @@ sample <- RunTSNE(sample, dims = 1:6)
 sample <- RunUMAP(sample, dims = 1:10)
 DimPlot(sample, reduction = "tsne")
 DimPlot(sample, reduction = "umap")
+
+# generate different plots
+# raw counts read in
+counts <- readMM("/home/daniel/master_thesis/bassoon_data/Output/post_qc/Bsn.221932.raw.counts.mtx")
+features <- read.table("/home/daniel/master_thesis/bassoon_data/Output/post_qc/Bsn.221932.features.txt")
+barcodes <- read.table("/home/daniel/master_thesis/bassoon_data/Output/post_qc/Bsn.221932.barcodes.txt")
+rownames(counts) <- features$V1
+colnames(counts) <- barcodes$V1
+
+sample.sce <- SingleCellExperiment(list(counts = counts))
+is.mito <- grepl("^mt-", rownames(sample.sce))
+sample.sce <- calculateQCMetrics(sample.sce, feature_controls = list(Mt=is.mito))
+
+par(mfrow=c(1,1))
+hist(sample.sce$total_counts, xlab="Library sizes", main="", 
+     breaks=50, col="grey80", ylab="Number of cells")
+hist(sample.sce$total_features_by_counts, xlab="Number of expressed genes", main="", 
+     breaks=50, col="grey80", ylab="Number of cells")
+hist(sample.sce$pct_counts_Mt, xlab="Mitochondrial proportion (%)", 
+     ylab="Number of cells", breaks=50, main="", col="grey80",xlim = c(0,100))
+
+sample.sce.norm <- normalize(sample.sce)
+genes <- c("Rho", "Opn1sw", "Opn1mw", "Gnat1", "Arr3", "Gnat2")
+plotExpression(sample.sce.norm, features = genes)
+
+plotHighestExprs(sample.sce, exprs_values = "counts")

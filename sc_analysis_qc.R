@@ -157,6 +157,7 @@ WriteCountMetrices <- function(
   sample.names = names(sce.list)
 ){
   i <- 1
+  list <- list()
   for (sce in sce.list){
     sample <- sample.names[i]
     i <- i + 1
@@ -167,6 +168,7 @@ WriteCountMetrices <- function(
                                      scale.factor = 1000, 
                                      verbose = FALSE)
       log.counts <- GetAssayData(seurat.object)
+      writeMM(log.counts, file = paste0(sample, ".log.counts.mtx"))
       if (filter.genes){
         log.counts <- SingleCellExperiment(assays = list(counts = log.counts))
         log.counts <- geneFiltering(log.counts, gene.expr = 0.001)
@@ -181,23 +183,39 @@ WriteCountMetrices <- function(
     write(features, file = paste0(sample, ".features.txt"))
     write(barcodes, file = paste0(sample, ".barcodes.txt"))
     writeMM(counts(sce), file = paste0(sample, ".raw.counts.mtx"))
-    writeMM(log.counts, file = paste0(sample, ".log.counts.mtx"))
     print(paste(sample, "Done"))
+    list[[sample]] <- sce
   }
+  return(list)
 }
 
-WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE)
+sce.filt <- WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE)
 
 ### Compute Mean/Median Umi count and Mean/Median Gene Count
-samples <- c()
 median.umi <- c()
 median.gene <- c()
 mean.umi <- c()
 mean.gene <- c()
+n.cells <- c()
+n.genes <- c()
+median.mt <- c()
+mean.mt <- c()
+samples <- names(sce.filt)
 for (sce in sce.filt){
-
+  is.mito <- grepl("^mt-", rownames(sce))
+  sce <-calculateQCMetrics(sce, feature_controls = list(Mt = is.mito))
+  n.cells <- c(n.cells, ncol(sce))
+  n.genes <- c(n.genes,nrow(sce))
+  median.mt <- c(median.mt, median(sce$pct_counts_Mt))
+  mean.mt <- c(mean.mt, mean(sce$pct_counts_Mt))
+  median.umi <- c(median.umi, median(sce$total_counts))
+  median.gene <- c(median.gene, median(sce$total_features_by_counts))
+  mean.umi <- c(mean.umi, mean(sce$total_counts))
+  mean.gene <- c(mean.gene, mean(sce$total_features_by_counts))
 }
 
-table <- rbind(median.umi, mean.umi, median.gene, mean.gene)
+table <- rbind(n.cells, n.genes, median.umi, mean.umi, median.gene, mean.gene, median.mt, mean.mt)
 colnames(table) <- samples
+df <- as.data.frame(t(table)) %>% rownames_to_column("sample")
+write.table(df, file = file, append = T, sep = " ",quote = F, row.names = F)
 xtable(table)

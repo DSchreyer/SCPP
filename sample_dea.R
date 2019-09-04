@@ -2,12 +2,15 @@
 library(Matrix)
 library(Seurat)
 library(tibble)
+library(plyr)
 library(dplyr)
 library(xtable)
 library(enrichR)
+library(pheatmap)
+library(brew)
 
-input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses/"
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident//"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses///"
 setwd(output.dir)
 
 samples <- paste0("Bsn.", seq(221931, 221940))
@@ -76,15 +79,16 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ
 seurat.objects$ct.gt <- paste(seurat.objects$genotype, seurat.objects$CellType, sep = ".")
 
 # sample 2: TSNE with Identified Populations
-sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
+'sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
 sample <- FindVariableFeatures(sample)
 sample <- ScaleData(sample)
 sample <- RunPCA(sample)
-sample <- RunTSNE(sample, dims = 1:6)
+sample <- RunTSNE(sample, dims = 1:10)
 sample <- RunUMAP(sample, dims = 1:10)
+pdf("221932.tsne.pdf")
 DimPlot(sample, reduction = "tsne")
 DimPlot(sample, reduction = "umap")
-
+dev.off()'
 
 
 Idents(seurat.objects) <- seurat.objects$ct.gt
@@ -142,12 +146,15 @@ deg[["mut.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod",
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
 
+
+
 # Enrichment analysis
 dbs <- listEnrichrDbs()
 websiteLive <- ifelse(is.null(dbs), FALSE, TRUE)
 if (websiteLive) head(dbs)
 
 databases <- c("GO_Biological_Process_2018", "KEGG_2019_Mouse", "MGI_Mammalian_Phenotype_Level_4_2019", "Mouse_Gene_Atlas", "GO_Molecular_Function_2018")
+databases <- c("KEGG_2019_Mouse")
 
 enriched <- list()
 i <- 1
@@ -168,6 +175,77 @@ for (table in deg){
   enriched[[paste(name, "down", sep = ".")]] <- enriched.down
   i <- i + 1
 }
+
+# Generate Heatmap with DE genes of all. LogFC as color
+gene.list <- lapply(deg, "[", , c(1,3))
+cone.deg.list <- lapply(gene.list, "[", , 1)
+cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))
+
+deg.table <- data.frame(matrix(nrow = length(cone.deg.list)))
+deg.table$gene <- cone.deg.list
+new.list <- list()
+new.list$gene <- deg.table
+new.list <- append(new.list, gene.list)
+full.table <- join_all(new.list, by = "gene", type = "left")
+rownames(full.table) <- full.table$gene
+colnames(full.table) <- paste0("V", seq(1, length(full.table)))
+full.table <- select(full.table, 3:length(full.table))
+colnames(full.table) <- names(gene.list)
+
+colors <- colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))
+
+pheatmap(full.table, cluster_rows = FALSE, cluster_cols = FALSE,
+         breaks = seq(-1.5,1.5, by = 0.05), 
+         color = colors(60))
+
+
+# Generate Heatmap with DE genes 
+gene.list <- lapply(deg.sep, "[", , c(1,3))
+cone.deg.list <- lapply(gene.list, "[", , 1)
+cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))
+
+deg.table <- data.frame(matrix(nrow = length(cone.deg.list)))
+deg.table$gene <- cone.deg.list
+new.list <- list()
+new.list$gene <- deg.table
+new.list <- append(new.list, gene.list)
+full.table <- join_all(new.list, by = "gene", type = "left")
+rownames(full.table) <- full.table$gene
+colnames(full.table) <- paste0("V", seq(1, length(full.table)))
+full.table <- select(full.table, 3:length(full.table))
+colnames(full.table) <- names(gene.list)
+heat.table <- ifelse(is.na(full.table), 0, 1)
+library(pheatmap)
+pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+
+# Principal Component Analysis of Cones
+good <- subset(subset, subset  = orig.ident == "Bsn.221932")
+good <- subset(good, subset = CellType == "Cone")
+good <- FindVariableFeatures(good, nfeatures = 500)
+good <- ScaleData(good)
+good <- RunPCA(good)
+good <- RunTSNE(good)
+DimPlot(good, reduction = "pca")
+DimPlot(good, reduction = "tsne")
+good <- FindNeighbors(good)
+good <- FindClusters(good)
+FindAllMarkers(good)
+
+
+bad <- subset(subset, subset  = orig.ident == "Bsn.221939")
+bad <- subset(bad, subset = CellType == "Cone")
+bad <- FindVariableFeatures(bad, nfeatures = 500)
+bad <- ScaleData(bad)
+bad <- RunPCA(bad)
+bad <- RunTSNE(bad)
+DimPlot(bad, reduction = "pca")
+DimPlot(bad, reduction = "tsne")
+bad <- FindNeighbors(bad)
+bad <- FindClusters(bad, resolution = 0.6)
+FindAllMarkers(bad)
+table(Idents(bad))
+
+
 
 ## DEG TABLES WITHOUT COMMON GENES
 deg.filtered <- list()
@@ -238,6 +316,8 @@ for (comp in enriched){
   i <- i + 1
 }
 
+
+
 ### Generate Differentially Expressed Gene Tables
 i <- 1
 for(table in deg){
@@ -271,10 +351,16 @@ for(table in deg){
 
 
 
-
-
-
-
+test <- subset(seurat.objects, subset = orig.ident == "Bsn.221936")
+1
+test <- FindVariableFeatures(test)
+test <- ScaleData(test)
+test <- RunPCA(test)
+test <- RunTSNE(test)
+DimPlot(test, reduction = "tsne")
+test <- FindNeighbors(test)
+test <- FindClusters(test, resolution = 0.5)
+FindAllMarkers(test)
 
 test <- enriched$GO_Biological_Process_2018
 
