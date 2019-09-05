@@ -7,7 +7,8 @@ library(dplyr)
 library(xtable)
 library(enrichR)
 library(pheatmap)
-library(brew)
+library(RColorBrewer)
+library(pheatmap)
 
 input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident//"
 output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses///"
@@ -176,7 +177,7 @@ for (table in deg){
   i <- i + 1
 }
 
-# Generate Heatmap with DE genes of all. LogFC as color
+# Generate Heatmap with DE genes of all. LogFC as color -- only cone genes
 gene.list <- lapply(deg, "[", , c(1,3))
 cone.deg.list <- lapply(gene.list, "[", , 1)
 cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))
@@ -199,7 +200,30 @@ pheatmap(full.table, cluster_rows = FALSE, cluster_cols = FALSE,
          color = colors(60))
 
 
-# Generate Heatmap with DE genes 
+# all genes
+gene.list <- lapply(deg, "[", , c(1,3))
+all.deg.list <- lapply(gene.list, "[", , 1)
+all.deg.list <- unique(unlist(all.deg.list))
+
+deg.table <- data.frame(matrix(nrow = length(all.deg.list)))
+deg.table$gene <- all.deg.list
+new.list <- list()
+new.list$gene <- deg.table
+new.list <- append(new.list, gene.list)
+full.table <- join_all(new.list, by = "gene", type = "left")
+rownames(full.table) <- full.table$gene
+colnames(full.table) <- paste0("V", seq(1, length(full.table)))
+full.table <- select(full.table, 3:length(full.table))
+colnames(full.table) <- names(gene.list)
+
+colors <- colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))
+
+pheatmap(full.table, cluster_cols = F, cluster_rows = F,
+         breaks = seq(-1.5,1.5, by = 0.05), 
+         color = colors(60))
+
+
+# Generate Heatmap with DE genes -- separated up and downregulated
 gene.list <- lapply(deg.sep, "[", , c(1,3))
 cone.deg.list <- lapply(gene.list, "[", , 1)
 cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))
@@ -215,8 +239,71 @@ colnames(full.table) <- paste0("V", seq(1, length(full.table)))
 full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(gene.list)
 heat.table <- ifelse(is.na(full.table), 0, 1)
-library(pheatmap)
 pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+
+
+pdf("pathways_heatmap.pdf")
+## Pathway analysis Heatmap --> Only upregulated pathways
+up.down <- grepl(names(enriched), pattern = "up|down")
+new <- enriched[up.down]
+
+kegg.list <- lapply(new, function(x){
+  x <- as.data.frame(x$KEGG_2019_Mouse)
+  x <- dplyr::filter(x, Adjusted.P.value < 0.05)
+  return(x)
+})
+
+path.pval <- lapply(kegg.list, "[", , c(1,4))
+pathways <- unique(unlist(lapply(kegg.list, "[", , 1)))
+path.pval.test <- Filter(nrow, path.pval)
+
+path.table <- data.frame(matrix(nrow = length(pathways)))
+path.table$Term <- pathways
+new.list <- list()
+new.list$Term <- path.table
+new.list <- append(new.list, path.pval.test)
+full.table <- join_all(new.list, by = "Term", type = "left")
+rownames(full.table) <- full.table$Term
+colnames(full.table) <- paste0("V", seq(1, length(full.table)))
+full.table <- select(full.table, 3:length(full.table))
+colnames(full.table) <- names(path.pval.test)
+heat.table <- ifelse(is.na(full.table), 0, 1)
+pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+
+#all genes in one 
+all <- grepl(names(enriched), pattern = "all")
+new <- enriched[all]
+
+kegg.list <- lapply(new, function(x){
+  x <- as.data.frame(x$KEGG_2019_Mouse)
+  x <- dplyr::filter(x, Adjusted.P.value < 0.05)
+  return(x)
+})
+
+
+path.pval <- lapply(kegg.list, "[", , c(1,4))
+pathways <- unique(unlist(lapply(kegg.list, "[", , 1)))
+path.pval.test <- Filter(nrow, path.pval)
+
+path.table <- data.frame(matrix(nrow = length(pathways)))
+path.table$Term <- pathways
+new.list <- list()
+new.list$Term <- path.table
+new.list <- append(new.list, path.pval.test)
+full.table <- join_all(new.list, by = "Term", type = "left")
+rownames(full.table) <- full.table$Term
+colnames(full.table) <- paste0("V", seq(1, length(full.table)))
+full.table <- select(full.table, 3:length(full.table))
+colnames(full.table) <- names(path.pval.test)
+heat.table <- ifelse(is.na(full.table), 0, 1)
+pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+dev.off()
+
+
+
+
+
+
 
 # Principal Component Analysis of Cones
 good <- subset(subset, subset  = orig.ident == "Bsn.221932")

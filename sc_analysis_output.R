@@ -131,6 +131,7 @@ qc.info$genotype <- factor(qc.info$genotype, levels = c("C57BL/6J_WT",  "C57BL/6
 # Plot: Samples on x-axis, total cells on y - axis
 # Plot: Samples on x-axis, total cells before + after qc
 
+pdf("sample_graph_info.pdf")
 # colors <- c(rep("#A4BFEB", 2), rep("#8CABBE", 3), rep("#BBA0B2", 2), rep("#9D858D", 3))
 colors <- c("#A4BFEB", "#8CABBE", "#BBA0B2", "#9D858D")
 
@@ -232,6 +233,8 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ
 
 ## Table with Number of cells, genes, median.umi, median.gene, rods, cones, unknown, proportions
 seurat.objects$genotype <- factor(seurat.objects$genotype, levels = c("C57BL/6J_WT",  "C57BL/6J_Bsn_mut",  "C57BL/6NJ_WT",  "C57BL/6NJ_Bsn_KO"))
+clean <- subset(seurat.objects, subset = CellType != "Unknown")
+
 
 n.cells.genotype <- as.data.frame(table(seurat.objects$genotype))
 colnames(n.cells.genotype) <- c("Genotype", "n.cells")
@@ -241,6 +244,56 @@ ggplot(data = n.cells.genotype, aes(x = Genotype, y = n.cells, fill = Genotype))
   theme_minimal() + theme(legend.position = "none") + 
   scale_y_continuous(limits = c(0, 60000)) + 
   theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.1))
+
+n.cells.genotype.wo.unk <- as.data.frame(table(clean$genotype))
+colnames(n.cells.genotype.wo.unk) <- c("Genotype", "n.cells")
+
+
+ggplot(data = n.cells.genotype.wo.unk, aes(x = Genotype, y = n.cells, fill = Genotype)) + 
+  geom_bar(stat = "identity", colour = "black") + scale_fill_manual(values = colors) + 
+  theme_minimal() + theme(legend.position = "none") + 
+  scale_y_continuous(limits = c(0, 60000)) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.1))
+
+
+# Celltype plots
+colors3 <- c("#FFEDDF", "#C5D86D", "#666469")
+
+
+ct.table <- as.data.frame(t(table(seurat.objects$CellType, seurat.objects$genotype)))
+colnames(ct.table) <- c("genotype", "celltype", "n.cells")
+ct.table$celltype <- factor(ct.table$celltype, levels = c("Unknown", "Cone", "Rod"))
+
+ggplot(ct.table, aes(x = genotype, y = n.cells, fill = celltype)) + 
+  geom_bar(stat = "identity", colour = "black") + 
+  scale_fill_manual(values = colors3) + theme_minimal()
+
+ct.table.wo.unk <- dplyr::filter(ct.table, celltype != "Unknown")
+colors2 <- colors3[c(2,3)]
+ggplot(ct.table.wo.unk, aes(x = genotype, y = n.cells, fill = celltype)) + 
+  geom_bar(stat = "identity", colour = "black") + 
+  scale_fill_manual(values = colors2)  + theme_minimal()
+
+ct.sample <- as.data.frame(t(table(seurat.objects$CellType, seurat.objects$orig.ident)))
+colnames(ct.sample) <- c("sample", "celltype", "n.cells")
+ct.sample$sample <- as.character(seq(221931, 221940))
+ct.sample$genotype <-  c(rep("C57BL/6J_WT", 2), rep("C57BL/6J_Bsn_mut",3), 
+                         rep("C57BL/6NJ_WT", 2), rep("C57BL/6NJ_Bsn_KO", 3))
+
+ct.sample$celltype <- factor(ct.sample$celltype, levels = c("Unknown", "Cone", "Rod"))
+ggplot(ct.sample,aes( x = sample, y = n.cells, fill = celltype)) + 
+  geom_bar(stat = "identity", colour = "black") +
+  scale_fill_manual(values = colors3) + theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1, vjust = 1.1))
+  
+
+ct.sample.wo.unk <- dplyr::filter(ct.sample, celltype != "Unknown")
+ggplot(ct.sample.wo.unk, aes(x = sample, y = n.cells, fill = celltype)) + 
+  geom_bar(stat = "identity", colour = "black") + 
+  scale_fill_manual(values = colors2) + theme_minimal()
+dev.off()
+
+
 
 # Create tables with information
 file = "Bsn_info_table.csv"
