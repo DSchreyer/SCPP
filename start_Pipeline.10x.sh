@@ -22,10 +22,6 @@ for dir in $(ls $dir_10x); do
     --htseq /media/data/tools/anaconda3/lib/python3.7/site-packages/HTSeq/scripts/count.py \
     --featureCounts /media/data/tools/subread-1.6.4-Linux-x86_64/bin/featureCounts \
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
-    --salmon /media/data/Daniel/src/salmon-latest_linux_x86_64/bin/salmon \
-    --useSalmon "n" \
-    --salmonTgMap "/media/data2/Daniel/salmon/index/Mus_musculus.GRCm38.p6.tx2pgene.tsv" \
-    --salmonIndex /media/data2/Daniel/salmon/index/Mus_musculus.GRCm38_index \
     --index "y" \
     --threads 4 \
     --whitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt" \
@@ -53,10 +49,6 @@ done
 # reference genome file downloaded from ensembl - 30.04.19 - GRCm38.dna.primary_assembly.fa.gz
 # annotation file downloaded from enselmbl - 30.04.19 - GRCm38.96.gtf.gz
 
-# Salmon download 04.07.2019 https://github.com/COMBINE-lab/salmon/releases 0.14.1 version
-# Download transcriptome on ftp://ftp.ensembl.org/pub/release-97/fasta/mus_musculus/cdna/
-# 49.6 MB   25/05/2019, 22:19:00
-# Mus_musculus.GRCm38.all.cdna.fa.gz
 # -- transcript to gene file 
 # http://www.ensembl.org/biomart/martview/5327b67ede7aff19118cafed11db2417
 # Mouse genes (GRCm38.p6) Download tsv.gz table 04.07.19
