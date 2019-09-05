@@ -92,18 +92,6 @@ do
       STAR="$2"
       shift
       ;;
-    --salmon)
-      SALMON="$2"
-      shift
-      ;;
-    --useSalmon)
-      USESALMON="$2"
-      shift
-      ;;
-    --salmonIndex) # if it is a directory --> create index in there. If file assume it is index file
-      SALMONINDEX="$2"
-      shift
-      ;;
     --featureCounts)
       FEATURECOUNTS="$2"
       shift
@@ -167,11 +155,35 @@ file_exists (){
   fi
 }
 
-    
-# if [[ ${#EXPECTEDARGS[@]} != ${#ARGARRAY[@]} ]]; then
-#   echo "One or multiple argument/s is/are missing!"
-#   help_message
-# fi
+# Default Parameters
+# Genome Indexing default = "no"
+if [[ -z ${GENOMEINDEX+x} ]]; then
+  GENOMEINDEX="yes"
+fi
+if [[ -z ${QC+x} ]]; then
+  QC="yes"
+fi
+if [[ -z ${READ+x} ]]; then
+  READ="R2"
+fi
+if [[ -z ${BARCODE+x} ]]; then
+  BARCODE="R1"
+fi
+if [[ -z ${LANES+x} ]]; then
+  LANES="all"
+fi
+if [[ -z ${THREADS+x} ]]; then
+  THREADS=1
+fi
+if [[ -z ${INDEX+x} ]]; then
+  INDEX="no"
+  make_dir $INDICESDIR
+fi
+if [[ -z ${TRIMOPTIONS+x} ]]; then
+  TRIMOPTIONS="TRAILING: 20 HEADING:20 MINLEN:75"
+fi
+
+
 
 # create directories for essential outputs  
 FASTQCDIR=$OUTPUT/FastQC_output    
@@ -184,19 +196,6 @@ make_dir $OUTPUT
 make_dir $FASTQCDIR   
 make_dir $STARDIR 
 make_dir $MERGED
-
-# generate salmon transcriptome index
-if [[ $USESALMON == "yes" && ! -f $SALMONINDEX/txpInfo.bin ]]; then
-  SALMONINDEX=${SALMONINDEX}/$(basename $TRANSCRIPTOME).index
-  $SALMON index -t $TRANSCRIPTOME -i ${SALMONINDEX}
-fi
-
-if [[ $USESALMON == "yes" ]]; then
-  make_dir $OUTPUT/salmon
-  $SALMONOUTPUT=$OUTPUT/salmon/$(basename $R2 _R2_001.fastq)
-  $SALMON alevin -l ISR -1 $R1 -2 $R2 --chromium -i $SALMONINDEX \
-    -o $SALMONOUTPUT \
-    --tgMap  --forceCells
 
 
 # Sequencing files
@@ -444,11 +443,6 @@ echo Annotation File = "${ANNOTATION}"
 echo "Generate Genome Index"
 
 # GENOMEINDEX stores user input, if genome indices were already generated
-echo "${GENOMEINDEX}"
-if [[ ! ${GENOMEINDEX} =~ yes|y|n|no|Yes|No|Y|N|NO|YES ]]; then
-  echo "Please specify, if the STAR indices are available or not!"
-  help_message
-fi
 
 # with anno file: generate indices with it | without: generate indices without
 if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
