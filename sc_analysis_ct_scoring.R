@@ -120,13 +120,5 @@ for (seurat.object in seurat.object.list){
 Idents(seurat.object) <- celltype
 FindAllMarkers(seurat.object)
 
-
 rm(seurat.object, celltype, count.table, barcodes, features, sample)
 # write feature list, barcode list, and raw count table to a file
-
-
-
-
-
-
-
