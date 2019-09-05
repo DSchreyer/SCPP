@@ -1,10 +1,43 @@
 library(Seurat)
-library(scater)
-library(scran)
-library(dplyr)
-library(tidyr)
 library(Matrix)
 
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/test_ct_ident/"
+dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
+setwd(input.dir)
+
+samples <- paste0("Bsn.", seq(221931, 221940))
+
+ReadCountMetrices <- function(
+  dir,
+  log.counts = TRUE,
+  samples,
+  counts = "log.counts.mtx",
+  feature = "features.txt",
+  barcode = "barcodes.txt"
+){
+  seurat.objects <- list()
+  ls <- list.files(dir)
+  for (sample in samples){
+    ind <- grep(pattern = sample, ls)
+    count.file <- grep(counts, ls[ind], value = TRUE)
+    feature.file <- grep(feature, ls[ind], value = TRUE)
+    barcode.file <- grep(barcode, ls[ind], value = TRUE)
+    count.table <- readMM(count.file)
+    features <- read.csv(feature.file, stringsAsFactors = F, header = F)
+    barcodes <- read.csv(barcode.file, stringsAsFactors = F, header = F)
+    rownames(count.table) <- features$V1
+    colnames(count.table) <- barcodes$V1
+    seurat.object <- CreateSeuratObject(project = sample, counts = count.table)
+    if (!log.counts){
+      seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 1000)
+    }
+    seurat.objects[[sample]] <- seurat.object
+  }
+  return(seurat.objects)
+}
+
+seurat.object.list <- ReadCountMetrices(dir = input.dir, log.counts = TRUE, samples = samples)
 
 # CellTypeScoring function is based on ScoreCellCycle function from Seurat
 # Input are marker genes of 2 different cell types and it scores each cell based on the marker gene expression level
@@ -62,89 +95,35 @@ CellTypeScoring <- function(
   return(object)
 }
 
-# all.samples <- as.character(seq(221931, 221940, 1))
-# for (sample in all.samples){
 
-# laptop
-path.to.cellranger.outs <- paste("/home/daniel/master_thesis/bassoon_data/Cellranger output/", sample, sep = "")
-# cluster
-# path.to.cellranger.outs <- paste("/media/data2/Daniel/cellranger_output/", sample, "/outs/", sep = "/")
-
-# Read in sparse matrix with cellranger output
-data.dir = paste(path.to.cellranger.outs, "/raw_feature_bc_matrix/", sep = "/")
-data.dir = "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-data <- Read10X(data.dir = data.dir, gene.column = 2, unique.features = TRUE)
-
-
-umi.count <- 120
-filter.umi.count <- Matrix::colSums(data) >= umi.count
-data <- data[ , filter.umi.count]
-
-gene.count <- 80
-filter.gene.count <- Matrix::colSums(data > 0) >= gene.count
-data <- data[ , filter.gene.count]
-
-all.count.tables <- lapply(c(as.character(seq(1,10))),
-       function(x) data[, grep(x, colnames(data))])
-names(all.count.tables) <- paste0("Bsn.", seq(221931,221940))
-
-for (count.table in all.count.tables){
-  filter.feature.expr.cells <- ncol(count.table)*0.001
-  keep.features <- Matrix::rowSums(count.table > 0) >= filter.feature.expr.cells
-  count.table <- count.table[keep.features, ]
-# Create SingleCellExperiment object with sparse matrix
-sce <- SingleCellExperiment(assays = list(counts = count.table))
-
-# Quality Control with scater
-is.mito <- grepl("^mt-", rownames(sce))
-# quality control with caluclateQCMetrics
-sce <- calculateQCMetrics(sce, exprs_values = "counts",
-                          feature_controls = list(MT = is.mito))
-
-# Drop below and above 3 median absolute deviations: libsize, mitochondrial gene count, expressed genes
-libsize.drop <- isOutlier(sce$total_counts, nmads = 3, type = "both", log = T)
-
-feature.drop <- isOutlier(sce$total_features_by_counts, nmads = 3, type = "both", log = T)
-
-mito.drop <- isOutlier(sce$pct_counts_MT, nmads = 3, type = "higher")
-
-sce <- sce[, !(libsize.drop | feature.drop | mito.drop)]
-dim(sce)
-
-
-# normalize with scater function normalize using library sizes as size factors
-# sce <- normalize(sce)
-# plotHighestExprs(sce)
-# plotExpression(sce, features = c("Rho", "Opn1sw", "Opn1mw", "Arr3", "Nrl", "Gnat2"))
-
-
-# Load into Seurat objet
-Bsn <- as.Seurat(sce, data = "counts", assay = "RNA", counts = "counts", project = sample)
-
-raw.counts <- Bsn[["RNA"]]@counts
-
-# normalize the data
-Bsn <- NormalizeData(Bsn, normalization.method = "LogNormalize", scale.factor = 1000)
 
 # Alex approved Markers
-rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1")
-cone.markers <- c("Opn1sw", "Opn1mw", "Arr3", "Gnat2", "Pde6h", "Gngt2", "Gnb3")
+rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1", "Crx", "Nrl", "Pde6a")
+cone.markers <- c("Opn1sw", "Opn1mw", "Arr3", "Gnat2", "Pde6h", "Gngt2", "Gnb3", "Rora")
 
 
-Bsn <- CellTypeScoring(object = Bsn, type.1 = "Cone", type.2 = "Rod", type.1.features = cone.markers,
-                   type.2.features = rod.markers, name = "Cell Type")
-
-CellType <- as.vector(Bsn@meta.data$CellType)
-barcodes <- colnames(raw.counts)
-features <- rownames(raw.counts)
-
-cell.type <- cbind(barcodes, CellType)
-
-# write feature list, barcode list, and raw count table to a file
-write(features, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".features.txt"))
-write.table(cell.type, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".barcode.celltype.csv"), sep = ",", quote = F, row.names = F)
-writeMM(raw.counts, file = paste0("/home/daniel/master_thesis/bassoon_data/Cellranger output/Samples_ct_scored/", sample, ".logcounts.mtx"))
+for (seurat.object in seurat.object.list){
+  seurat.object <- CellTypeScoring(object = seurat.object, type.1 = "Cone", type.2 = "Rod", type.1.features = cone.markers,
+                         type.2.features = rod.markers, name = "Cell Type")
+  celltype <- as.vector(seurat.object@meta.data$CellType)
+  count.table <- GetAssayData(seurat.object)
+  barcodes <- colnames(count.table)
+  features <- rownames(count.table)
+  sample <- seurat.object@project.name
+  write(features, file =  paste0(output.dir, sample, ".features.txt"))
+  write(barcodes, file =  paste0(output.dir, sample, ".barcodes.txt"))
+  write(celltype, file =  paste0(output.dir, sample, ".celltype.txt"))
+  writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
+  print(paste(sample, "Done"))
 }
+
+Idents(seurat.object) <- celltype
+FindAllMarkers(seurat.object)
+
+
+rm(seurat.object, celltype, count.table, barcodes, features, sample)
+# write feature list, barcode list, and raw count table to a file
+
 
 
 
