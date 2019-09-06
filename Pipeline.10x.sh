@@ -327,7 +327,7 @@ if [[ umi_whitelist == "yes" ]]; then
   $UMITOOLS whitelist \
     --stdin $R1 \
     --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-    --method "reads" \
+    --method=umis \
     --log2stderr > $WHITELIST
   echo "END Umi-Tools whitelist: $R1" 
   date
