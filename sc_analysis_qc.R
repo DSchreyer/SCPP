@@ -1,7 +1,8 @@
 library(scater)
 library(Seurat)
 library(Matrix)
-
+library(tibble)
+library(dplyr)
 # laptop
 # path.to.cellranger.outs <- paste("/home/daniel/master_thesis/bassoon_data/Cellranger output/", sample, sep = "")
 # cluster
@@ -16,7 +17,7 @@ library(Matrix)
 
 # laptop
 data.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/test_qc_120/"
 
 # Create Output Directory
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
@@ -47,12 +48,12 @@ generateCountTables <- function(
   data <- data[ , filter.expressed.genes]
   
   all.count.tables <- lapply(c(as.character(seq(1, n.samples))),
-                             function(x) data[, grep(x, colnames(data))])
+                             function(x) data[, grep(paste0(x, "$"), colnames(data))])
   names(all.count.tables) <- sample.names
   return(all.count.tables)
 }
 
-count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 120, expressed.genes = 100, sample.names = sample.names)
+count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 150, expressed.genes = 120, sample.names = sample.names)
 
 
 
@@ -168,12 +169,12 @@ WriteCountMetrices <- function(
                                      scale.factor = 1000, 
                                      verbose = FALSE)
       log.counts <- GetAssayData(seurat.object)
-      writeMM(log.counts, file = paste0(sample, ".log.counts.mtx"))
       if (filter.genes){
         log.counts <- SingleCellExperiment(assays = list(counts = log.counts))
         log.counts <- geneFiltering(log.counts, gene.expr = 0.001)
         log.counts <- counts(log.counts)
       }
+      writeMM(log.counts, file = paste0(sample, ".log.counts.mtx"))
     }
     if (filter.genes){
       sce <- geneFiltering(object = sce, gene.expr = 0.001)

@@ -10,8 +10,9 @@ library(pheatmap)
 library(RColorBrewer)
 library(pheatmap)
 
-input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident//"
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
 output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses///"
+dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
 setwd(output.dir)
 
 samples <- paste0("Bsn.", seq(221931, 221940))
@@ -60,6 +61,56 @@ LoadSeuratFiles <- function(
 }
 seurat.objects <- LoadSeuratFiles(dir = input.dir, samples = samples)
 
+
+# ### TRANSFER CELL LABELS TO OTHER OBJECTS
+ref <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
+ref <- FindVariableFeatures(ref, nfeatures = 1000)
+ref <- ScaleData(ref)
+ref <- RunPCA(ref)
+ref <- FindNeighbors(ref, dims = 1:7)
+# 0.05 works
+ref <- FindClusters(ref, resolution = 0.1)
+m <- FindAllMarkers(ref, only.pos = T)
+# 2 is cones 0 is rods
+ref <- RunTSNE(ref, dims = 1:7)
+DimPlot(ref, reduction = "tsne")
+
+seurat.object.list <- SplitObject(seurat.objects, split.by = "orig.ident")
+
+
+## Transfer Anchors from ref data set
+new.so.list <- list()
+for (object in seurat.object.list){
+  name <- unique(object$orig.ident)
+  if (ncol(object) < 500){
+    next
+  }
+  anchors <- FindTransferAnchors(ref, object)
+  predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters, dims = 1:7)
+  object <- AddMetaData(object, metadata = predictions)
+  Idents(object) <- object$predicted.id
+  new.so.list[[name]] <- object
+}
+
+save(new.so.list, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/post_transfer_so.Robj")
+
+
+so.list <- new.so.list
+so.list$Bsn.221931 <- NULL
+
+so <- merge(x = new.so.list$Bsn.221931, so.list)
+
+
+
+# load("/home/daniel/master_thesis/bassoon_data/Output/test_qc_120/post_integration_so.Robj")
+# seurat.objects <- so.integrated
+
+celltypes <- c("Rod", "Unknown",  "Cone", "Unknown", "Unknown")
+names(celltypes) <- levels(so)
+so <- RenameIdents(so, celltypes)
+seurat.objects <- so
+seurat.objects$CellType <- Idents(seurat.objects)
+
 # Combine Genotypes together
 # 1,2: C57BL/6J_WT
 # 3,4,5: C57BL/6J Bsn_mut
@@ -78,6 +129,7 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221939"] <- "C57BL/6NJ
 seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ_Bsn_KO"
 
 seurat.objects$ct.gt <- paste(seurat.objects$genotype, seurat.objects$CellType, sep = ".")
+Idents(seurat.objects) <- seurat.objects$ct.gt
 
 # sample 2: TSNE with Identified Populations
 'sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
@@ -92,7 +144,7 @@ DimPlot(sample, reduction = "umap")
 dev.off()'
 
 
-Idents(seurat.objects) <- seurat.objects$ct.gt
+# Idents(seurat.objects) <- seurat.objects$ct.gt
 
 subset <- subset(seurat.objects, subset  = CellType != "Unknown")
 
@@ -146,6 +198,7 @@ deg[["mut.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod",
                                ident.2 = "C57BL/6NJ_Bsn_KO.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
+save(deg, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/deg_list.Robj")
 
 
 
@@ -178,6 +231,7 @@ for (table in deg){
 }
 
 # Generate Heatmap with DE genes of all. LogFC as color -- only cone genes
+pdf("deg.heatmap.pdf")
 gene.list <- lapply(deg, "[", , c(1,3))
 cone.deg.list <- lapply(gene.list, "[", , 1)
 cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))
@@ -194,10 +248,14 @@ full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(gene.list)
 
 colors <- colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))
-
-pheatmap(full.table, cluster_rows = FALSE, cluster_cols = FALSE,
+full.table[is.na(full.table)] <- 0
+cone.genes.deg <- pheatmap(full.table, cluster_rows = F, cluster_cols = FALSE,
+                           breaks = seq(-1.5,1.5, by = 0.05), 
+                           color = colors(60), fontsize_row = 5)
+cone.genes.deg <- pheatmap(full.table, cluster_rows = T, cluster_cols = FALSE,
          breaks = seq(-1.5,1.5, by = 0.05), 
-         color = colors(60))
+         color = colors(60), fontsize_row = 5)
+write.table(x = full.table, file = "deg.cones.heatmap.logfc.csv", sep = ",")
 
 
 # all genes
@@ -217,10 +275,14 @@ full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(gene.list)
 
 colors <- colorRampPalette(rev(brewer.pal(n = 10, name = "RdYlBu")))
-
+full.table[is.na(full.table)] <- 0
 pheatmap(full.table, cluster_cols = F, cluster_rows = F,
          breaks = seq(-1.5,1.5, by = 0.05), 
          color = colors(60))
+pheatmap(full.table, cluster_cols = F, cluster_rows = T,
+         breaks = seq(-1.5,1.5, by = 0.05), 
+         color = colors(60))
+write.table(x = full.table, file = "deg.all.heatmap.logfc.csv", sep = ",")
 
 
 # Generate Heatmap with DE genes -- separated up and downregulated
@@ -239,8 +301,10 @@ colnames(full.table) <- paste0("V", seq(1, length(full.table)))
 full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(gene.list)
 heat.table <- ifelse(is.na(full.table), 0, 1)
-pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
-
+pheatmap(heat.table, cluster_rows = T, cluster_cols = F,
+         fontsize_row = 6)
+write.table(x = heat.table, file = "deg.up.down.heatmap.csv", sep = ",")
+dev.off()
 
 pdf("pathways_heatmap.pdf")
 ## Pathway analysis Heatmap --> Only upregulated pathways
@@ -268,7 +332,8 @@ colnames(full.table) <- paste0("V", seq(1, length(full.table)))
 full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(path.pval.test)
 heat.table <- ifelse(is.na(full.table), 0, 1)
-pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+pheatmap(heat.table, cluster_rows = T, cluster_cols = F)
+write.table(x = heat.table, file = "pathways.up.down.heatmap.csv", sep = ",")
 
 #all genes in one 
 all <- grepl(names(enriched), pattern = "all")
@@ -297,8 +362,8 @@ full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(path.pval.test)
 heat.table <- ifelse(is.na(full.table), 0, 1)
 pheatmap(heat.table, cluster_rows = FALSE, cluster_cols = FALSE)
+write.table(x = heat.table, file = "pathways.all.heatmap.csv", sep = ",")
 dev.off()
-
 
 
 
