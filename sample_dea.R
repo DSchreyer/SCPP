@@ -73,7 +73,15 @@ ref <- FindClusters(ref, resolution = 0.1)
 m <- FindAllMarkers(ref, only.pos = T)
 # 2 is cones 0 is rods
 ref <- RunTSNE(ref, dims = 1:7)
+
+ref <- RunUMAP(ref, dims = 1:7)
+pdf("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/221932_ref_umap.pdf")
+DimPlot(ref, reduction = "umap")
+dev.off()
+
+pdf("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/221932_ref_tsne.pdf")
 DimPlot(ref, reduction = "tsne")
+dev.off()
 
 seurat.object.list <- SplitObject(seurat.objects, split.by = "orig.ident")
 
@@ -93,12 +101,16 @@ for (object in seurat.object.list){
 }
 
 save(new.so.list, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/post_transfer_so.Robj")
+load("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/post_transfer_so.Robj")
 
+
+markers <- FindAllMarkers(new.so.list$Bsn.221932, only.pos = T)
 
 so.list <- new.so.list
 so.list$Bsn.221931 <- NULL
 
 so <- merge(x = new.so.list$Bsn.221931, so.list)
+
 
 
 
@@ -199,7 +211,7 @@ deg[["mut.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod",
   rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
 
 save(deg, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/deg_list.Robj")
-
+load("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/deg_list.Robj")
 
 
 # Enrichment analysis
@@ -217,8 +229,8 @@ deg.sep <- list()
 for (table in deg){
   name <- names(deg)[i]
   table$expr <- ifelse(table$avg_logFC > 0, "up", "down")
-  up <- filter(table, expr == "up")
-  down <- filter(table, expr == "down")
+  up <- dplyr::filter(table, expr == "up")
+  down <- dplyr::filter(table, expr == "down")
   deg.sep[[paste(name, "up", sep = ".")]] <- up
   deg.sep[[paste(name, "down", sep = ".")]] <- down
   enriched.all <- enrichr(table$gene, databases)

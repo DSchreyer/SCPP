@@ -1,8 +1,8 @@
 library(Seurat)
 library(Matrix)
 
-input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/test_qc_120//"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/test_ct_ident/"
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_qc///"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_ct_ident/"
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
 setwd(input.dir)
 
@@ -18,6 +18,7 @@ ReadCountMetrices <- function(
 ){
   seurat.objects <- list()
   ls <- list.files(dir)
+  first <- TRUE
   for (sample in samples){
     ind <- grep(pattern = sample, ls)
     count.file <- grep(counts, ls[ind], value = TRUE)
@@ -32,76 +33,64 @@ ReadCountMetrices <- function(
     if (!log.counts){
       seurat.object <- NormalizeData(seurat.object, normalization.method = "LogNormalize", scale.factor = 1000)
     }
-    seurat.objects[[sample]] <- seurat.object
+    if (first){
+      seurat.objects <- seurat.object
+      first = FALSE
+    } else {
+      seurat.objects <- merge(seurat.objects, seurat.object)
+    }
   }
   return(seurat.objects)
 }
 
-seurat.object.list <- ReadCountMetrices(dir = input.dir, log.counts = TRUE, samples = samples)
+seurat.objects <- ReadCountMetrices(dir = input.dir, log.counts = TRUE, samples = samples)
 
 # ### TRANSFER CELL LABELS TO OTHER OBJECTS
-ref <- seurat.object.list$Bsn.221932
+ref <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
 ref <- FindVariableFeatures(ref, nfeatures = 1000)
 ref <- ScaleData(ref)
 ref <- RunPCA(ref)
-ref <- FindNeighbors(ref, dims = 1:10)
-ref <- FindClusters(ref, resolution = 0.03)
-markers <- FindAllMarkers(ref, only.pos = T)
-anchors <- FindTransferAnchors(ref, seurat.object.list$Bsn.221931)
-predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters, 
-                            dims = 1:10)
-queries <- AddMetaData(seurat.object.list$Bsn.221931, metadata = predictions)
-Idents(queries) <- queries$predicted.id
-FindMarkers(queries, ident.1 = "0", ident.2 = "2")
+ref <- FindNeighbors(ref, dims = 1:7)
+# 0.1 works
+ref <- FindClusters(ref, resolution = 0.1)
+m <- FindAllMarkers(ref, only.pos = T)
+# 2 is cones 0 is rods
+ref <- RunTSNE(ref, dims = 1:7)
+DimPlot(ref, reduction = "tsne")
 
+seurat.object.list <- SplitObject(seurat.objects, split.by = "orig.ident")
+seurat.object.list$Bsn.221932 <- NULL
 new.so.list <- list()
 for (object in seurat.object.list){
   name <- object@project.name
   if (ncol(object) < 500){
     next
   }
-  anchors <- FindTransferAnchors(ref, object)
-  predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters, dims = 1:10)
+  anchors <- FindTransferAnchors(ref, object, reduction = "cca", dims = 1:7)
+  predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters,
+                              weight.reduction = "cca")
   object <- AddMetaData(object, metadata = predictions)
   Idents(object) <- object$predicted.id
   new.so.list[[name]] <- object
 }
 
-for (so in new.so.list){
-  # print(FindMarkers(so, ident.1 = "0", ident.2 = "2"))
-  print(table(Idents(so)))
+celltypes <- c("rod", "bipolar_cell", "Müller_glia", "cones", "RPE")
+for (seurat.object in new.so.list){
+  seurat.object <- RenameIdents(seurat.object)
+  
+  celltype <- as.vector(seurat.object@meta.data$CellType)
+  count.table <- GetAssayData(seurat.object)
+  barcodes <- colnames(count.table)
+  features <- rownames(count.table)
+  sample <- seurat.object@project.name
+  write(features, file =  paste0(output.dir, sample, ".features.txt"))
+  write(barcodes, file =  paste0(output.dir, sample, ".barcodes.txt"))
+  write(celltype, file =  paste0(output.dir, sample, ".celltype.txt"))
+  writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
+  print(paste(sample, "Done"))
 }
 
 
-## INTEGRATE DATA
-features <- SelectIntegrationFeatures(object.list = seurat.object.list, nfeatures = 1000)
-reference <- which(names(seurat.object.list) == "Bsn.221932")
-subset <- seurat.object.list
-subset$Bsn.221935 <- NULL 
-
-
-so.anchors <- FindIntegrationAnchors(object.list = subset, anchor.features = features )
-so.integrated <- IntegrateData(anchorset = so.anchors)
-so.integrated <- ScaleData(so.integrated)
-so.integrated <- RunPCA(so.integrated)
-so.integrated <- RunUMAP(so.integrated, dims = 1:10)
-so.integrated <- FindNeighbors(so.integrated, dims = 1:10)
-# resolution 0.1 works
-so.integrated <- FindClusters(so.integrated, resolution = 0.15)
-FindAllMarkers(so.integrated, only.pos = T)
-
-
-DimPlot(so.integrated, group.by = "celltype", reduction = "umap")
-save(so.integrated, file = "/home/daniel/master_thesis/bassoon_data/Output/test_qc_120/post_integration_so.Robj")
-
-  
-Rbad <- seurat.object.list$Bsn.221938
-anchors <- FindTransferAnchors(ref, bad)
-predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters, dims = 1:10)
-bad <- AddMetaData(bad, metadata = predictions)
-Idents(bad) <- bad$predicted.id
-# m <- FindAllMarkers(bad, only.pos = T)
-FindMarkers(bad, ident.1 = "0", ident.2 = "2")
 
 # CellTypeScoring function is based on ScoreCellCycle function from Seurat
 # Input are marker genes of 2 different cell types and it scores each cell based on the marker gene expression level
@@ -158,21 +147,6 @@ CellTypeScoring <- function(
   }
   return(object)
 }
-
-one <- FindVariableFeatures(seurat.object.list$Bsn.221932, nfeatures = 1000)
-one <- ScaleData(one)
-one <- RunPCA(one)
-one <- FindNeighbors(one, dims = 1:6)
-one <- FindClusters(one, resolution = 0.05)
-FindAllMarkers(one, only.pos = T) %>% filter(p_val_adj < 0.05)
-table(Idents(one))
-one <- RunTSNE(one)
-DimPlot(one, reduction = "tsne")
-
-anchors <- FindTransferAnchors(one, seurat.object.list$Bsn.221931)
-predictions <- TransferData(anchorset = anchors, refdata = one$seurat_clusters, 
-                            dims = 1:6)
-queries <- AddMetaData(seurat.object.list$Bsn.221931, metadata = predictions)
 
 # Alex approved Markers
 rod.markers <- c("Rho", "Nt5e", "Nr2e3", "Gnat1", "Cngb1", "Crx", "Nrl", "Pde6a")
