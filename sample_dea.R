@@ -10,12 +10,13 @@ library(pheatmap)
 library(RColorBrewer)
 library(pheatmap)
 
-input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_ct_ident/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/downstream_analyses///"
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_ct_ident/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/"
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
 setwd(output.dir)
 
 samples <- paste0("Bsn.", seq(221931, 221940))
+samples <- samples[-5]
 
 
 LoadSeuratFiles <- function(
@@ -114,14 +115,6 @@ so <- merge(x = new.so.list$Bsn.221931, so.list)
 
 
 
-# load("/home/daniel/master_thesis/bassoon_data/Output/test_qc_120/post_integration_so.Robj")
-# seurat.objects <- so.integrated
-
-celltypes <- c("Rod", "Unknown",  "Cone", "Unknown", "Unknown")
-names(celltypes) <- levels(so)
-so <- RenameIdents(so, celltypes)
-seurat.objects <- so
-seurat.objects$CellType <- Idents(seurat.objects)
 
 # Combine Genotypes together
 # 1,2: C57BL/6J_WT
@@ -143,72 +136,55 @@ seurat.objects$genotype[seurat.objects$orig.ident == "Bsn.221940"] <- "C57BL/6NJ
 seurat.objects$ct.gt <- paste(seurat.objects$genotype, seurat.objects$CellType, sep = ".")
 Idents(seurat.objects) <- seurat.objects$ct.gt
 
-# sample 2: TSNE with Identified Populations
-'sample <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
-sample <- FindVariableFeatures(sample)
-sample <- ScaleData(sample)
-sample <- RunPCA(sample)
-sample <- RunTSNE(sample, dims = 1:10)
-sample <- RunUMAP(sample, dims = 1:10)
-pdf("221932.tsne.pdf")
-DimPlot(sample, reduction = "tsne")
-DimPlot(sample, reduction = "umap")
-dev.off()'
-
-
-# Idents(seurat.objects) <- seurat.objects$ct.gt
-
-subset <- subset(seurat.objects, subset  = CellType != "Unknown")
-
 
 # Compare Rods and Cones to each other --> Different vulnerability
 deg <- list()
-deg[["rod.cone.wt.1"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod",
-                                   ident.2 = "C57BL/6J_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["rod.cone.wt.2"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Rod",
-                                   ident.2 = "C57BL/6NJ_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["wt1.rod.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_WT.rod",
+                                   ident.2 = "C57BL/6J_WT.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["wt2.rod.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6NJ_WT.rod",
+                                   ident.2 = "C57BL/6NJ_WT.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
 
-deg[["rod.cone.mut"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod", 
-                               ident.2 = "C57BL/6J_Bsn_mut.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["rod.cone.ko"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_Bsn_KO.Rod", 
-                                     ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["cone.wt"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Cone", 
-                                  ident.2 = "C57BL/6NJ_WT.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["rod.wt"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod", 
-                                ident.2 = "C57BL/6NJ_WT.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["mut.rod.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_Bsn_mut.rod", 
+                               ident.2 = "C57BL/6J_Bsn_mut.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["ko.rod.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6NJ_Bsn_KO.rod", 
+                                     ident.2 = "C57BL/6NJ_Bsn_KO.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["wt1.wt2.rod"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_WT.rod", 
+                                ident.2 = "C57BL/6NJ_WT.rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["wt1.wt2.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_WT.cone", 
+                                     ident.2 = "C57BL/6NJ_WT.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
 
 
 # Compare rod vs. rod, cone vs. cone
 # mutant strain
-deg[["wt.mut.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Rod",
-                                    ident.2 = "C57BL/6J_Bsn_mut.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["wt.mut.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_WT.Cone",
-                                    ident.2 = "C57BL/6J_Bsn_mut.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["wt.mut.rod"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_WT.rod",
+                                    ident.2 = "C57BL/6J_Bsn_mut.rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["wt.mut.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_WT.cone",
+                                    ident.2 = "C57BL/6J_Bsn_mut.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
 
 # KO strain
-deg[["wt.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Rod",
-                                   ident.2 = "C57BL/6NJ_Bsn_KO.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["wt.ko.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6NJ_WT.Cone",
-                                   ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["wt.ko.rod"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6NJ_WT.rod",
+                                   ident.2 = "C57BL/6NJ_Bsn_KO.rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["wt.ko.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6NJ_WT.cone",
+                                   ident.2 = "C57BL/6NJ_Bsn_KO.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
 
 
 # Compare Mutant to KO
-deg[["mut.ko.cone"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Cone", 
-                               ident.2 = "C57BL/6NJ_Bsn_KO.Cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
-deg[["mut.ko.rod"]] <- FindMarkers(subset, ident.1 = "C57BL/6J_Bsn_mut.Rod", 
-                               ident.2 = "C57BL/6NJ_Bsn_KO.Rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
-  rownames_to_column("gene") %>% filter(p_val_adj <= 0.05)
+deg[["mut.ko.cone"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_Bsn_mut.cone", 
+                               ident.2 = "C57BL/6NJ_Bsn_KO.cone", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
+deg[["mut.ko.rod"]] <- FindMarkers(seurat.objects, ident.1 = "C57BL/6J_Bsn_mut.rod", 
+                               ident.2 = "C57BL/6NJ_Bsn_KO.rod", logfc.threshold = 0.1, min.pct = 0.05) %>% 
+  rownames_to_column("gene") %>% dplyr::filter(p_val_adj <= 0.05)
 
 save(deg, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/deg_list.Robj")
 load("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/deg_list.Robj")
@@ -243,7 +219,7 @@ for (table in deg){
 }
 
 # Generate Heatmap with DE genes of all. LogFC as color -- only cone genes
-pdf("deg.heatmap.pdf")
+# pdf("deg.heatmap.pdf")
 gene.list <- lapply(deg, "[", , c(1,3))
 cone.deg.list <- lapply(gene.list, "[", , 1)
 cone.deg.list <- unique(unlist(cone.deg.list[grepl(names(cone.deg.list), pattern = "cone")], use.names = F))

@@ -9,7 +9,7 @@ library(dplyr)
 
 # laptop
 data.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_qc/"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc//"
 
 # Create Output Directory
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
@@ -45,7 +45,7 @@ generateCountTables <- function(
   return(all.count.tables)
 }
 
-count.tables <- generateCountTables(aggr.dir = data.dir, expressed.genes = 100, sample.names = sample.names)
+count.tables <- generateCountTables(aggr.dir = data.dir, umi.count = 120, expressed.genes = 100, sample.names = sample.names)
 
 qcControl <- function(
   count.tables,
@@ -115,18 +115,19 @@ qcControl <- function(
     sce.list[[sample]] <- sce
     print(paste(sample, "Done"))
     i <- i + 1
+    if (generate.info){
+      qc.info <<- cbind(before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
+                      median.gene, mean.umi, mean.gene, pct.mt.outlier.median, n.pct.mt.outlier)
+      qc.info <<- as.data.frame(qc.info)
+      qc.info$samples <<- samples
+    }
   }
-  qc.info <<- cbind(before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
-                    median.gene, mean.umi, mean.gene, pct.mt.outlier.median, n.pct.mt.outlier)
-  qc.info <<- as.data.frame(qc.info)
-  qc.info$samples <<- samples
   
   return(sce.list)
 }
 sce.list <- qcControl(count.tables = count.tables,
                       MAD = 5,
                       sample.names = names(count.tables),
-                      abundant.mt = 0.40,
                       generate.info = TRUE)
 
 
@@ -162,8 +163,10 @@ WriteCountMetrices <- function(
   sce.list,
   log.normalize = TRUE,
   filter.genes = TRUE,
+  output.dir = getwd(),
   sample.names = names(sce.list)
 ){
+  setwd(output.dir)
   i <- 1
   list <- list()
   for (sce in sce.list){
@@ -196,5 +199,4 @@ WriteCountMetrices <- function(
   }
   return(list)
 }
-
-sce.filt <- WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE)
+WriteCountMetrices(sce.list = sce.list, log.normalize = TRUE, filter.genes = TRUE, output.dir = output.dir)

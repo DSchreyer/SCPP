@@ -1,7 +1,7 @@
 library(Seurat)
 library(Matrix)
 
-input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_qc///"
+input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc/"
 output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/new_ct_ident/"
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
 setwd(input.dir)
@@ -47,9 +47,10 @@ seurat.objects <- ReadCountMetrices(dir = input.dir, log.counts = TRUE, samples 
 
 # ### TRANSFER CELL LABELS TO OTHER OBJECTS
 ref <- subset(seurat.objects, subset = orig.ident == "Bsn.221932")
-ref <- FindVariableFeatures(ref, nfeatures = 1000)
+ref <- FindVariableFeatures(ref, nfeatures = 1500)
 ref <- ScaleData(ref)
 ref <- RunPCA(ref)
+ElbowPlot(ref)
 ref <- FindNeighbors(ref, dims = 1:7)
 # 0.1 works
 ref <- FindClusters(ref, resolution = 0.1)
@@ -60,36 +61,46 @@ DimPlot(ref, reduction = "tsne")
 
 seurat.object.list <- SplitObject(seurat.objects, split.by = "orig.ident")
 seurat.object.list$Bsn.221932 <- NULL
+seurat.object.list$Bsn.221935 <- NULL
 new.so.list <- list()
 for (object in seurat.object.list){
-  name <- object@project.name
-  if (ncol(object) < 500){
-    next
-  }
-  anchors <- FindTransferAnchors(ref, object, reduction = "cca", dims = 1:7)
-  predictions <- TransferData(anchorset = anchors, refdata = ref$seurat_clusters,
-                              weight.reduction = "cca")
+  name <- unique(object$orig.ident)
+  anchors <- FindTransferAnchors(ref, object)
+  predictions <- TransferData(anchorset = anchors, 
+                              refdata = ref$seurat_clusters)
   object <- AddMetaData(object, metadata = predictions)
   Idents(object) <- object$predicted.id
   new.so.list[[name]] <- object
 }
+new.so.list$Bsn.221932 <- ref
+save(new.so.list, file = "/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/so.transfer.Robj")
+load("/home/daniel/master_thesis/bassoon_data/Output/New_analysis_output/so.transfer.Robj")
 
-celltypes <- c("rod", "bipolar_cell", "Müller_glia", "cones", "RPE")
+for (so in new.so.list){
+  print(unique(so$orig.ident))
+  print(table(Idents(so)))
+}
+
+celltypes <- c("rod", "bipolar_cell", "cone", "Müller_glia", "RPE")
+names(celltypes) <- c("0", "1", "2", "3", "4")
+
 for (seurat.object in new.so.list){
-  seurat.object <- RenameIdents(seurat.object)
+  # remove cells with a prediction score below 70%
+  # try(seurat.object <- seurat.object[, seurat.object$prediction.score.max >= 0.7])
   
-  celltype <- as.vector(seurat.object@meta.data$CellType)
+  seurat.object <- RenameIdents(seurat.object, celltypes)
+  seurat.object$celltype <- Idents(seurat.object)
+  celltype <- as.vector(seurat.object$celltype)
   count.table <- GetAssayData(seurat.object)
   barcodes <- colnames(count.table)
   features <- rownames(count.table)
-  sample <- seurat.object@project.name
+  sample <- unique(seurat.object$orig.ident)
   write(features, file =  paste0(output.dir, sample, ".features.txt"))
   write(barcodes, file =  paste0(output.dir, sample, ".barcodes.txt"))
   write(celltype, file =  paste0(output.dir, sample, ".celltype.txt"))
   writeMM(count.table, file = paste0(output.dir, sample, ".logcounts.mtx"))
   print(paste(sample, "Done"))
 }
-
 
 
 # CellTypeScoring function is based on ScoreCellCycle function from Seurat
