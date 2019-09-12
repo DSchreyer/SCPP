@@ -9,7 +9,7 @@ library(dplyr)
 
 # laptop
 data.dir <- "/home/daniel/master_thesis/bassoon_data/Cellranger output/Aggr/raw_feature_bc_matrix/"
-output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/post_qc//"
+output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/final_qc//"
 
 # Create Output Directory
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
@@ -77,7 +77,7 @@ qcControl <- function(
     sce <- sce[, !(libsize.drop | feature.drop | mito.drop)]
     
     # remove cells with percentage of mt genes expressed to total number of expressed gebes
-    pct.mt.outliers <- sce$pct_counts_MT >= abundant.mt*100
+    pct.mt.outliers <- sce$pct_counts_MT > abundant.mt*100
     sce <- sce[ , !pct.mt.outliers]
     n.cells.post <- ncol(sce)
     
@@ -125,10 +125,11 @@ qcControl <- function(
   
   return(sce.list)
 }
+
 sce.list <- qcControl(count.tables = count.tables,
                       MAD = 5,
                       sample.names = names(count.tables),
-                      generate.info = TRUE)
+                      generate.info = TRUE, abundant.mt = 0.5)
 
 
 geneFiltering <- function(
