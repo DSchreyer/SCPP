@@ -1,9 +1,9 @@
 #!/bin/bash
 
-dir_10x="/media/data2/Daniel/CDN3CANXX/"
+input="/media/data2/Daniel/CDN3CANXX/"
 output="/media/data2/Daniel/Output/out_20190701/"
 
-for dir in $(ls $dir_10x); do
+for dir in $(ls $input); do
   echo "Start pipeline with Sample $dir!"
   ./10x.test.Pipeline.sh \
     --output ${output}/$dir \
@@ -12,9 +12,14 @@ for dir in $(ls $dir_10x); do
     --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
     --indicesDir /media/data/Daniel/data/indices \
     --qualityControl "yes" \
-    --data ${dir_10x}/${dir} \
+    --trimming "no" \
+    --data ${input}/${dir} \
     --read "R2" \
     --barcode "R1" \
+    --useCellranger "yes" \
+    --useSTARsolo \
+    --cellranger /media/data/Daniel/cellranger-3.0.2/cellranger \
+    --cellrangerTranscriptome /media/data2/Daniel/cellranger_test/refdata-cellranger-mm10-3.0.0 \
     --umi-tools /media/data/Daniel/src/anaconda3/bin/umi_tools \
     --samtools /media/data/Daniel/src/anaconda3/bin/samtools \
     --trimmomatic /media/data/tools/Trimmomatic-0.36/trimmomatic-0.36.jar \

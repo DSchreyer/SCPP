@@ -33,6 +33,10 @@ do
       QC="$2"
       shift # shift arguments to the left = $2 -> $1
       ;;
+    --trimming) # Perform quality control?
+      TRIMMING="$2"
+      shift # shift arguments to the left = $2 -> $1
+      ;;
     --genome) # reference genome file
       GENOME="$2"
       shift 
@@ -67,6 +71,22 @@ do
       ;;
     --umi-tools) # how many threads are available
       UMITOOLS="$2"
+      shift
+      ;;
+    --useCellranger) # how many threads are available
+      USECR="$2"
+      shift
+      ;;
+    --useSTARsolo) # how many threads are available
+      USESTARSOLO="$2"
+      shift
+      ;;
+    --cellranger) # how many threads are available
+      CELLRANGER="$2"
+      shift
+      ;;
+    --cellrangerTranscriptome) # how many threads are available
+      CR_TRANSCRIPTOME="$2"
       shift
       ;;
     --samtools) # executable trimmomatic path
@@ -194,7 +214,7 @@ MERGED=${OUTPUT}/Files
 
 echo "Create multiple directories in $OUTPUT"
 make_dir $OUTPUT 
-make_dir $FASTQCDIR   
+make_dir $FASTQCDIR 
 make_dir $STARDIR 
 make_dir $MERGED
 
@@ -285,7 +305,6 @@ else
 fi
 echo "Finished: Stored Fastq file in $MERGED"
 
-TRIMMING="no"
 if [[ $TRIMMING = "no" ]]; then
   echo "Don't perform Trimming with Trimmomatic"
 elif [[ $TRIMMING == "yes" ]]; then
@@ -302,6 +321,16 @@ if [[ $QC == "yes" ]]; then
   $FASTQC -o $FASTQCDIR -t $THREADS ${R2}
   echo "Performed quality control"
 fi
+
+if [[ $USECR == "yes" ]]; then
+  $CELLRANGER count \
+    --id=$(basename $DATA) \
+    --sample=$(basename $DATA) \
+    --transcriptome=$CR_TRANSCRIPTOME \
+    --fastqs=$DATA
+  exit
+fi
+
 
 WHITEZIP=0
 if [[ $WHITELIST =~ .*.gz ]]
@@ -493,9 +522,10 @@ if [[ $use_umi == "yes" ]]; then
   echo "Saved STAR output of $R2 in $R2_STAROUT"
   echo "Finished STAR Alignment!"
   date
-else
+fi
+if [[ $USESTARSOLO == "yes" ]]; then
   echo "Start STARsolo: Mapping, Demultiplexing and gene quantification"
-  echo "Input: $R2"
+  echo "Input: $R1 and $R2"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $R2 $R1 \
@@ -503,11 +533,11 @@ else
     --outFileNamePrefix $R2_STAROUT \
     --soloType Droplet \
     --soloCBwhitelist $WHITELIST
+  echo "Finished STARsolo run with $R1 and $R2"
 fi
 
-use_featureCounts="no"
 # Count reads per gene with featureCounts
-if [[ $use_featureCounts == "yes" && $use_umi == "yes" ]]; then
+if [[ $use_umi == "yes" ]]; then
   COUNTS=${OUTPUT}/counts
   make_dir $COUNTS
   INPUT=${R2_STAROUT}Aligned.out.bam
