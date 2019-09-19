@@ -69,23 +69,27 @@ do
       THREADS="$2"
       shift
       ;;
-    --umi-tools) # how many threads are available
+    --umi-tools) # 
       UMITOOLS="$2"
       shift
       ;;
-    --useCellranger) # how many threads are available
-      USECR="$2"
+    --useCellranger) # 
+      USECELLRANGER="$2"
       shift
       ;;
-    --useSTARsolo) # how many threads are available
+    --useSTARsolo) # 
       USESTARSOLO="$2"
       shift
       ;;
-    --cellranger) # how many threads are available
+    --useUMItools) # 
+      USEUMITOOLS="$2"
+      shift
+      ;;
+    --cellranger) # 
       CELLRANGER="$2"
       shift
       ;;
-    --cellrangerTranscriptome) # how many threads are available
+    --cellrangerTranscriptome) # 
       CR_TRANSCRIPTOME="$2"
       shift
       ;;
@@ -137,6 +141,30 @@ do
       LANES="$2"
       shift
       ;;
+    --nGenes)
+      NGENES="$2"
+      shift
+      ;;
+    --nUMIs)
+      NUMIS="$2"
+      shift
+      ;;
+    --MAD)
+      MAD="$2"
+      shift
+      ;;
+    --abundantMT)
+      ABUNDANTMT="$2"
+      shift
+      ;;
+    --filterGenes)
+      FILTERGENES="$2"
+      shift
+      ;;
+    --normalize)
+      NORMALIZE="$2"
+      shift
+      ;;
     *)
       echo -e "ERROR: \"${option}\" is an unknown option!"
       help_message
@@ -176,45 +204,67 @@ file_exists (){
   fi
 }
 
-# Default Parameters
-# Genome Indexing default = "no"
-if [[ -z ${GENOMEINDEX+x} ]]; then
+# Set default parameters
+if [[ -z ${GENOMEINDEX+x} || $GENOMEINDEX == "" ]]; then
   GENOMEINDEX="yes"
 fi
-if [[ -z ${QC+x} ]]; then
+if [[ -z ${QC+x} || $QC == "" ]]; then
   QC="yes"
 fi
-if [[ -z ${READ+x} ]]; then
+if [[ -z ${READ+x} || $READ == "" ]]; then
   READ="R2"
 fi
-if [[ -z ${BARCODE+x} ]]; then
+if [[ -z ${BARCODE+x} || $BARCODE == "" ]]; then
   BARCODE="R1"
 fi
-if [[ -z ${LANES+x} ]]; then
+if [[ -z ${LANES+x} || $LANES == "" ]]; then
   LANES="all"
 fi
-if [[ -z ${THREADS+x} ]]; then
+if [[ -z ${THREADS+x} || $THREADS == "" ]]; then
   THREADS=1
 fi
-if [[ -z ${INDEX+x} ]]; then
-  INDEX="no"
-  make_dir $INDICESDIR
-fi
-if [[ -z ${TRIMOPTIONS+x} ]]; then
+if [[ -z ${TRIMOPTIONS+x} || $TRIMOPTIONS == "" ]]; then
   TRIMOPTIONS="TRAILING: 20 HEADING:20 MINLEN:75"
+fi 
+if [[ -z ${USEUMITOOLS+x} || $USEUMITOOLS == "" ]]; then
+  USEUMITOOLS="no"
 fi
-
+if [[ -z ${USESTARSOLO+x} || $USESTARSOLO == "" ]]; then
+  USESTARSOLO="no"
+fi
+if [[ -z ${USECELLRANGER+x} || $USECELLRANGER == "" ]]; then
+  USECELLRANGER="yes"
+fi
+if [[ -z ${USESTARSOLO+x} || $USESTARSOLO == "" ]]; then
+  USESTARSOLO="no"
+fi
+if [[ -z ${NGENES+x} || $NGENES == "" ]]; then
+  NGENES="100"
+fi
+if [[ -z ${NUMIS+x} || $NUMIS == "" ]]; then
+  NUMIS="125"
+fi
+if [[ -z ${MAD+x} || $MAD == "" ]]; then
+  MAD="5"
+fi
+if [[ -z ${ABUNDANTMT+x} || $ABUNDANTMT == "" ]]; then
+  ABUNDANTMT="0.5"
+fi
+if [[ -z ${FILTERGENES+x} || $FILTERGENES == "" ]]; then
+  FILTERGENES="0.001"
+fi
+if [[ -z ${NORMALIZE+x} || $NORMALIZE == "" ]]; then
+  NORMALIZE="yes"
+fi
 
 
 # create directories for essential outputs  
-FASTQCDIR=$OUTPUT/FastQC_output    
 STARDIR=$OUTPUT/STAR_output    
 MULTIQCDIR=$OUTPUT/MultiQC_output  
 MERGED=${OUTPUT}/Files
 
 echo "Create multiple directories in $OUTPUT"
 make_dir $OUTPUT 
-make_dir $FASTQCDIR 
 make_dir $STARDIR 
 make_dir $MERGED
 
@@ -232,9 +282,8 @@ echo "Start: Concatenating all Fastq files of a sample"
 date
 
 
-if [[ $LANES == "all" || $LANES == "" ]]; then
+if [[ $LANES == "all" ]]; then
   use_lanes="L[0-9]*"
-  LANES="all"
 else
   OIFS=$IFS
   IFS=","
@@ -316,19 +365,20 @@ else
 fi
 # Quality Control with all files in the data Directory --- FastQC
 if [[ $QC == "yes" ]]; then
+  FASTQCDIR=$OUTPUT/FastQC_output    
+  make_dir $FASTQCDIR
   echo "Perform quality control"
   echo "Quality Control of ${R2}"
   $FASTQC -o $FASTQCDIR -t $THREADS ${R2}
   echo "Performed quality control"
 fi
 
-if [[ $USECR == "yes" ]]; then
+if [[ $USECELLRANGER == "yes" ]]; then
   $CELLRANGER count \
     --id=$(basename $DATA) \
     --sample=$(basename $DATA) \
     --transcriptome=$CR_TRANSCRIPTOME \
     --fastqs=$DATA
-  exit
 fi
 
 
@@ -475,7 +525,7 @@ echo "Generate Genome Index"
 # GENOMEINDEX stores user input, if genome indices were already generated
 
 # with anno file: generate indices with it | without: generate indices without
-if [ -z ${GENOMEINDEX+x} ] || [[ ${GENOMEINDEX} =~ no|n|No|N|NO ]]; then
+if [[ ${GENOMEINDEX} == "no" ]]; then
   make_dir $INDICESDIR  
   if [[ -z ${ANNOTATION+x} ]]; then
     echo "No annotation file. Indexing with annotation file is recommended!"
