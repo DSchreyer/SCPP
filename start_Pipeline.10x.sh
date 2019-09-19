@@ -32,6 +32,12 @@ for dir in $(ls $input); do
     --whitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt" \
     --trimOptions "TRAILING:20 HEADING:20 MINLEN:75" \
     --useLanes "all" \
+    --nGenes "100" \
+    --nUMIs "" \
+    --MAD "" \
+    --abundantMT 0.5 \
+    --filterGenes 0.001 \
+    --normalize "yes" \
     | tee ${output}/${dir}.Pipeline.log.out
 done
 
