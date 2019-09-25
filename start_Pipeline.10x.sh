@@ -15,10 +15,10 @@ for dir in $(ls $input); do
     --data ${input}/${dir} \
     --read "R2" \
     --barcode "R1" \
-    --useCellranger "yes" \
+    --useCellranger "no" \
     --CRoptions "" \
     --useSTARsolo "no" \
-    --useUMItools "no" \
+    --useUMItools "yes" \
     --STARoptions "" \
     --cellrangerTranscriptome /media/data2/Daniel/cellranger_test/refdata-cellranger-mm10-3.0.0 \
     --umi-tools /media/data/Daniel/src/anaconda3/bin/umi_tools \
@@ -28,10 +28,10 @@ for dir in $(ls $input); do
     --featureCounts /media/data/tools/subread-1.6.4-Linux-x86_64/bin/featureCounts \
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
     --index "y" \
-    --threads 4 \
-    --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt" \
-    --UMITOOLSwhitelist "" \
-    --genWhitelist "no" \
+    --threads 2 \
+    --STARwhitelist "" \
+    --UMITOOLSwhitelist /media/data2/Daniel/Output/test/221932/Umi-Tools/221932_S4.whitelist.txt \
+    --genWhitelist "yes" \
     --trimOptions "TRAILING:20 HEADCROP:20 MINLEN:75" \
     --useLanes "all" \
     --nGenes "100" \

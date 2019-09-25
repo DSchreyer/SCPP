@@ -243,6 +243,12 @@ fi
 if [[ -z ${USECELLRANGER+x} || $USECELLRANGER == "" ]]; then
   USECELLRANGER="yes"
 fi
+if [[ -z ${UMITOOLSWHITELIST+x} ]]; then
+  UMITOOLSWHITELIST=""
+fi
+if [[ -z ${STARWHITELIST+x} ]]; then
+  STARWHITELIST=""
+fi
 if [[ -z ${USESTARSOLO+x} || $USESTARSOLO == "" ]]; then
   USESTARSOLO="no"
 fi
@@ -333,7 +339,6 @@ for file in ${FILES[@]}; do
     fi
   done
 done
-
 # Quality Control with all files in the data Directory --- FastQC
 if [[ $QC == "yes" ]]; then
   FASTQCDIR=$OUTPUT/FastQC_output    
@@ -371,31 +376,31 @@ if [[ $TRIMMING == "yes" ]]; then
     TRIM_ARRAY+=($file_trim)
   done
   R2_ARRAY=${TRIM_ARRAY[@]}
+  # Quality Control of trimmed single end files with FastQC
+  if [[ $QC == "yes" ]]; then
+    for file in ${R2_ARRAY[@]}; do
+      echo "Start quality control of $file"
+      date
+      dir_trim=${FASTQCDIR}/$(basename $file .fastq)
+      make_dir $dir_trim
+      $FASTQC -o $dir_trim -t $THREADS $file
+      echo "Performed quality control of $file."
+    done
+    echo "Finished quality control: $R2"
+    date
+  fi
 fi
 
-# Quality Control of trimmed single end files with FastQC
-if [[ $QC == "yes" && $TRIMMING == "yes" ]]; then
-  for file in ${R2_ARRAY[@]}; do
-    echo "Start quality control of $file"
-    date
-    dir_trim=${FASTQCDIR}/$(basename $file .fastq)
-    make_dir $dir_trim
-    $FASTQC -o $dir_trim -t $THREADS $file
-    echo "Performed quality control of $file."
-  done
-  echo "Finished quality control: $R2"
-  date
-fi
 
 
 # Merge fastq files together. Only used in UMI tools or STARsolo branch
 if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
+  MERGED=$OUTPUT/Files
+  make_dir $MERGED
   R1=${MERGED}/${R1_SAMPLE}_${LANES}_${BARCODE}_001.${R1_FORMAT}
   R2=${MERGED}/${R2_SAMPLE}_${LANES}_${READ}_001.${R2_FORMAT}
   STARDIR=$OUTPUT/STAR_output
   make_dir $STARDIR
-  MERGED=$OUTPUT/Files
-  make_dir $MERGED
   if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
     R2=${R2_ARRAY}
     R1=${R1_ARRAY}
@@ -413,15 +418,14 @@ if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
 fi
 echo "Finished: Stored Fastq file in $MERGED"
 
-
+# Use CellRanger branch by specifying useCellranger "yes"
 if [[ $USECELLRANGER == "yes" ]]; then
   if [[ $LANES == "all" ]]; then
     LANES=""
   else
     LANES="--lanes $LANES"
   fi
-
-  CROUTPUT=$OUTPUT/CellRanger/$(basename $DATA)
+  CROUTPUT=$OUTPUT/CellRanger/
   make_dir $CROUTPUT
   cd $CROUTPUT
   $CELLRANGER count \
@@ -435,7 +439,7 @@ fi
 
 # Unzip given whitelist for UMI-tools
 UMIWHITEZIP=0
-if [[ $UMITOOLSwhitelist =~ .*.gz ]]
+if [[ $USEUMITOOLS && $UMITOOLSwhitelist =~ .*.gz ]]
 then
   echo "unzip whitelist: $UMITOOLSwhitelist"
   WHITELIST_UNZIP=$(echo "${UMITOOLSwhitelist}" | sed 's/.gz$//')
@@ -449,8 +453,10 @@ fi
 
 # Umi-Tools
 # Identify correct cell barcodes
-if [[ gen_whitelist == "yes" && UMITOOLSwhitelist == "" ]]; then
-  UMIWHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
+if [[ $gen_whitelist == "yes" ]]; then
+  UMITOOLSDIR=${OUTPUT}/Umi-Tools
+  make_dir $UMITOOLSDIR
+  WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
   echo "Identify correct cell barcodes with Umi-Tools!"
   echo "START Umi-Tools whitelist: $R1"
   date
@@ -458,12 +464,22 @@ if [[ gen_whitelist == "yes" && UMITOOLSwhitelist == "" ]]; then
     --stdin $R1 \
     --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
     --method=umis \
-    --log2stderr > $UMIWHITELIST
+    --log2stderr > $WHITELIST
   echo "END Umi-Tools whitelist: $R1" 
   date
+  if [[ $UMITOOLSWHITELIST == "" && $USEUMITOOLS == "yes" ]]; then
+    echo "UMI-tools whitelist: $WHITELIST"
+    UMITOOLSWHITELIST=$WHITELIST
+  fi
+  if [[ $STARWHITELIST == "" && $USESTARSOLO == "yes" ]]; then
+    echo "STARsolo whitelist: $WHITELIST"
+    STARWHITELIST=$UMITOOLSDIR/$(basename $WHITELIST .txt).STAR.txt
+    cat $WHITELIST | awk '{print $1}' > $STARWHITELIST
+  fi
 fi
 
-if [[ $use_umi == "yes" ]]; then
+
+if [[ $USEUMITOOLS == "yes" ]]; then
   UMITOOLSDIR=${OUTPUT}/Umi-Tools
   make_dir $UMITOOLSDIR
   EXTRACTED_UMIS=()
@@ -476,44 +492,29 @@ if [[ $use_umi == "yes" ]]; then
   R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
 
   # if w != yes -> no umi_tools whitelist
-  if [[ $umi_whitelist == "yes" ]]; then
-    echo "Extract barcodes and UMIs and add to read names"
-    echo "START Umi-Tools extract: $R1 and $R2"
-    date
-    $UMITOOLS extract \
-      --stdin $R1 \
-      --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-      --stdout $R1_EXT \
-      --read2-in $R2 \
-      --read2-out $R2_EXT \
-      --quality-encoding="phred33" \
-      --quality-filter-threshold 15 \
-      --filter-cell-barcode \
-      --error-correct-cell \
-      --whitelist=$UMIWHITELIST
+  echo "Extract barcodes and UMIs and add to read names"
+  echo "START Umi-Tools extract: $R1 and $R2"
+  date
+  $UMITOOLS extract \
+    --stdin $R1 \
+    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+    --stdout $R1_EXT \
+    --read2-in $R2 \
+    --read2-out $R2_EXT \
+    --quality-encoding="phred33" \
+    --quality-filter-threshold 15 \
+    --filter-cell-barcode \
+    --error-correct-cell \
+    --whitelist=$UMITOOLSWHITELIST
 
-    echo "END Umi-Tools extract: $R1 and $R2"
-    echo "Stored: $R1_EXT and $R2_EXT"
-    date
-  else
-    echo "Extract barcodes and UMIs and add to read names"
-    echo "START Umi-Tools extract: $R1 and $R2"
-    date
-    $UMITOOLS extract \
-      --stdin $R1 \
-      --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-      --stdout $R1_EXT \
-      --read2-in $R2 \
-      --read2-out $R2_EXT \
-      --quality-filter-threshold 15 
-    echo "END Umi-Tools extract: $R1 and $R2"
-    echo "Stored: $R1_EXT and $R2_EXT"
-    date
-  fi
+  echo "END Umi-Tools extract: $R1 and $R2"
+  echo "Stored: $R1_EXT and $R2_EXT"
   echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
+  date
   R1=$R1_EXT
   R2=$R2_EXT
 fi
+
 
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
@@ -582,7 +583,7 @@ if [[ ${GENOMEINDEX} == "no" ]]; then
   date
 fi
 
-if [[ $use_umi == "yes" ]]; then
+if [[ $USEUMITOOLS == "yes" ]]; then
   R2_STAROUT=$STARDIR/$(basename $R2 fastq)
   echo "Start STAR alignment: $R2"
   echo "STAR Output = $R2_STAROUT"
@@ -607,13 +608,13 @@ if [[ $USESTARSOLO == "yes" ]]; then
     --outSAMtype BAM Unsorted \
     --outFileNamePrefix $R2_SOLO_OUT \
     --soloType Droplet \
-    --soloCBwhitelist $WHITELIST \
+    --soloCBwhitelist $STARWHITELIST \
     $STAROPTIONS
   echo "Finished STARsolo run with $R1 and $R2"
 fi
 
 # Count reads per gene with featureCounts
-if [[ $use_umi == "yes" ]]; then
+if [[ $USEUMITOOLS == "yes" ]]; then
   COUNTS=${OUTPUT}/counts
   make_dir $COUNTS
   INPUT=${R2_STAROUT}Aligned.out.bam
@@ -626,8 +627,8 @@ if [[ $use_umi == "yes" ]]; then
     -o $COUNTOUT \
     -R BAM $INPUT \
     -T ${THREADS}
-  SAMINPUT=${INPUT}.featureCounts.bam
-  SAMOUTPUT=$COUNTS/$(basename $COUNTOUT counts.txt)Aligned.out.featureCounts.sorted.bam  
+  SAMINPUT=$COUNTS/$(basename $INPUT).featureCounts.bam
+  SAMOUTPUT=$COUNTS/$(basename $SAMINPUT .bam).sorted.bam  
   echo "Start: Samtools sort!"
   echo "Input: $SAMINPUT"
   echo "Output: $SAMOUTPUT"
@@ -657,6 +658,8 @@ if [[ $use_umi == "yes" ]]; then
   echo "Stored count table in $COUNTFILE"
   date
 fi
+
+
 
 echo "Gzip File: $R1 and $R2"
 date
