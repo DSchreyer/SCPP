@@ -4,14 +4,6 @@
 # Daniel Schreyer
 # Single Cell Analysis Pipeline
 # Input: 10x single cell data
-# Output:   1. Cell count table
-#           2. Metadata file
-#           3. Differentially expressed genes
-#           4. PCA, tSNE
-#           5. Marker genes for sequenced cell types
-
-# TODO: ADD HTSeq-count
-# TODO: Add STAR date format: "Jul 03 11:33:36 ..... started STAR run"
 
 ##########################
 # print out help message, if an error occured
@@ -193,7 +185,6 @@ make_dir (){
   local dir="${1}"
   if [[ ! -d $dir ]]; then
     mkdir -p $dir
-    echo "Created $dir!"
   fi
 }
 
@@ -277,6 +268,8 @@ fi
 # Create Output Directory
 make_dir $OUTPUT 
 
+# create time variable
+now=$(date +%d-%m-%Y" "%X" |")
 
 # Sequencing files
 FILES=$(ls -d $DATA/*)
@@ -343,13 +336,13 @@ done
 if [[ $QC == "yes" ]]; then
   FASTQCDIR=$OUTPUT/FastQC_output    
   make_dir $FASTQCDIR
-  echo "Perform quality control"
+  echo "$now Perform quality control"
   for file in ${R2_ARRAY[@]}; do
     echo "Start quality control of $file"
     dir=${FASTQCDIR}/$(basename $file .fastq)
     make_dir $dir
     $FASTQC -o $dir -t $THREADS $file
-    echo "Performed quality control of $file."
+    echo "$now Performed quality control of $file."
   done
 fi
 
@@ -358,36 +351,30 @@ if [[ $TRIMMING == "yes" ]]; then
   TRIMDIR=$OUTPUT/trimmomatic_output 
   make_dir $TRIMDIR
   TRIM_ARRAY=()
-  echo "Start trimming reads with Trimmomatic!"
+  echo "$now Start trimming reads with Trimmomatic!"
   for file in ${R2_ARRAY[@]}; do
     file_trim=$TRIMDIR/$(basename $file .fastq)_trim.fastq
     echo "Perform trimming with $file"
     echo "Options: $TRIM_OPTIONS"
     echo "OUTPUT: $file_trim"
-    date
     TRIM="_trim"
     java -jar $TRIMMOMATIC \
       SE -phred33 $file $file_trim \
       -threads ${THREADS} \
       $TRIMOPTIONS
-    echo "Finished trimming!"
-    echo "Stored trimmed file in $file_trim"
-    date
+    echo "$now Finished trimming. Stored in $file_trim"
     TRIM_ARRAY+=($file_trim)
   done
   R2_ARRAY=${TRIM_ARRAY[@]}
   # Quality Control of trimmed single end files with FastQC
   if [[ $QC == "yes" ]]; then
     for file in ${R2_ARRAY[@]}; do
-      echo "Start quality control of $file"
-      date
+      echo "$now Start quality control of $file"
       dir_trim=${FASTQCDIR}/$(basename $file .fastq)
       make_dir $dir_trim
       $FASTQC -o $dir_trim -t $THREADS $file
-      echo "Performed quality control of $file."
+      echo "$now Performed quality control of $file."
     done
-    echo "Finished quality control: $R2"
-    date
   fi
 fi
 
@@ -404,19 +391,18 @@ if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
   if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
     R2=${R2_ARRAY}
     R1=${R1_ARRAY}
-    echo "Only one sequencing file"
   elif [[ ${#R2_ARRAY[@]} -gt 1 ]]; then
-    echo "Concatenate Read 1 Files"
+    echo "$now Concatenate Read 1 Files"
     cat ${R1_ARRAY[@]} > $R1
-    echo "Concatenate Read 2 Files"
+    echo "$now Concatenate Read 2 Files"
     cat ${R2_ARRAY[@]} > $R2
-    echo "Concatenate ${R2_ARRAY[@]}"
+    echo "$now Concatenate ${R2_ARRAY[@]}"
   else
-    echo "No read file is stored in $DATA!"
+    echo "$now No read file is stored in $DATA!"
     help_message
   fi
 fi
-echo "Finished: Stored Fastq file in $MERGED"
+echo "$now Stored Fastq file in $MERGED"
 
 # Use CellRanger branch by specifying useCellranger "yes"
 if [[ $USECELLRANGER == "yes" ]]; then
@@ -430,6 +416,7 @@ if [[ $USECELLRANGER == "yes" ]]; then
   old_pwd=pwd
   cd $CROUTPUT
   sample=$(basename $DATA)
+  echo "$now Start CellRanger"
   $CELLRANGER count \
     --id=$sample \
     --sample=$sample \
@@ -437,18 +424,19 @@ if [[ $USECELLRANGER == "yes" ]]; then
     --fastqs=$DATA \
     $LANES \
     $CROPTIONS
+  echo "$now Finished CellRanger"
 fi
 
 # Unzip given whitelist for UMI-tools
 UMIWHITEZIP=0
 if [[ $USEUMITOOLS && $UMITOOLSWHITELIST =~ .*.gz ]]
 then
-  echo "unzip whitelist: $UMITOOLSWHITELIST"
   WHITELIST_UNZIP=$(echo "${UMITOOLSWHITELIST}" | sed 's/.gz$//')
   if [[ ! -f $WHITELIST_UNZIP ]]; then
-    echo "Unzip whitelist file: $UMITOOLSWHITELIST"
+    echo "$now Unzip whitelist file: $UMITOOLSWHITELIST"
     gunzip --keep "${UMITOOLSWHITELIST}"
     UMIWHITEZIP=1
+    echo "$now Finished."
   fi
   UMIWHITELIST=$WHITELIST_UNZIP
 fi
@@ -459,22 +447,17 @@ if [[ $gen_whitelist == "yes" ]]; then
   UMITOOLSDIR=${OUTPUT}/Umi-Tools
   make_dir $UMITOOLSDIR
   WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
-  echo "Identify correct cell barcodes with Umi-Tools!"
-  echo "START Umi-Tools whitelist: $R1"
-  date
+  echo "$now START Umi-Tools whitelist: $R1"
   $UMITOOLS whitelist \
     --stdin $R1 \
     --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
     --method=umis \
     --log2stderr > $WHITELIST
-  echo "END Umi-Tools whitelist: $R1" 
-  date
+  echo "$now END Umi-Tools whitelist: $R1" 
   if [[ $UMITOOLSWHITELIST == "" && $USEUMITOOLS == "yes" ]]; then
-    echo "UMI-tools whitelist: $WHITELIST"
     UMITOOLSWHITELIST=$WHITELIST
   fi
   if [[ $STARWHITELIST == "" && $USESTARSOLO == "yes" ]]; then
-    echo "STARsolo whitelist: $WHITELIST"
     STARWHITELIST=$UMITOOLSDIR/$(basename $WHITELIST .txt).STAR.txt
     cat $WHITELIST | awk '{print $1}' > $STARWHITELIST
   fi
@@ -486,17 +469,10 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   make_dir $UMITOOLSDIR
   EXTRACTED_UMIS=()
   DEMUX_FILES=()
-  echo "Umi-Tools: $R2"
-  echo "Using Umi-Tools to extract Barcode"
-  date 
   EXT="_extracted"
   R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
   R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
-
-  # if w != yes -> no umi_tools whitelist
-  echo "Extract barcodes and UMIs and add to read names"
-  echo "START Umi-Tools extract: $R1 and $R2"
-  date
+  echo "$now START Umi-Tools extract: $R1 and $R2"
   $UMITOOLS extract \
     --stdin $R1 \
     --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
@@ -509,10 +485,8 @@ if [[ $USEUMITOOLS == "yes" ]]; then
     --error-correct-cell \
     --whitelist=$UMITOOLSWHITELIST
 
-  echo "END Umi-Tools extract: $R1 and $R2"
-  echo "Stored: $R1_EXT and $R2_EXT"
-  echo "Finished Umi-Tools Whitelist and extract. Next Steps are Alignment and counting"
-  date
+  echo "$now END Umi-Tools extract: $R1 and $R2"
+  echo "$now Stored: $R1_EXT and $R2_EXT"
   R1=$R1_EXT
   R2=$R2_EXT
 fi
@@ -521,9 +495,10 @@ fi
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
 then
-  echo "unzip genome fasta file"
+  echo "$now START Unzip genome fasta file"
   gunzip --keep "${GENOME}"
   GENOME=$(echo "${GENOME}" | sed 's/.gz$//')
+  echo "$now Finished."
 fi
 
 # ANNOZIP=0: annotation file is unzipped, ANNOZIP=1: annotation file was zipped
@@ -535,76 +510,69 @@ if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
   if [[ -f $ANNOTATION_unzipped ]]; then
     ANNOTATION=$ANNOTATION_unzipped
   else
-    echo  "gunzip annotation file ${ANNOTATION}"
+    echo  "$now Gunzip annotation file ${ANNOTATION}"
     gunzip --keep "${ANNOTATION}"
     ANNOZIP=1
     ANNOTATION=$(echo "${ANNOTATION}" | sed 's/.gz$//')
-    echo "Finished unzipping annotation file"
-    date
+    echo "$now Finished unzipping annotation file"
   fi
 fi
-
-
-echo Annotation File = "${ANNOTATION}"
-echo "Generate Genome Index"
+echo "$now" Annotation File = "${ANNOTATION}"
 
 # GENOMEINDEX stores user input, if genome indices were already generated
 
 # with anno file: generate indices with it | without: generate indices without
 if [[ ${GENOMEINDEX} == "no" ]]; then
+  echo "$now START generate genome index"
   make_dir $INDICESDIR  
   if [[ -z ${ANNOTATION+x} ]]; then
-    echo "No annotation file. Indexing with annotation file is recommended!"
+    echo "$now No annotation file. Indexing with annotation file is recommended!"
     $STAR --runMode genomeGenerate \
       --genomeDir "${INDICESDIR}" \
       --genomeFastaFiles "${GENOME}" \
       --runThreadN ${THREADS}
   else
     if [[ $ANNOTATION =~ .*\.gtf ]]; then
-      echo "Run genomeGenerate with gtf annotation file"
+      echo "$now Run genomeGenerate with gtf annotation file"
       $STAR --runMode genomeGenerate \
         --genomeDir "${INDICESDIR}" \
         --sjdbGTFfile "${ANNOTATION}" \
         --genomeFastaFiles "${GENOME}" \
         --runThreadN ${THREADS}
     elif [[ $ANNOTATION =~ .*\.gff ]]; then
-      echo "Run genomeGenerate with gff annotation file"
+      echo "$now Run genomeGenerate with gff annotation file"
       $STAR --runmode genomeGenerate \
         --genomeDir "${INDICESDIR}" \
         --sjdbGTFtagExonParentTranscript Parent \
         --genomeFastaFiles "${GENOME}" \
         --runThreadN "${THREADS}"
     else
-      echo "Annotation file ${ANNOTATION} has the wrong format"
-      echo "Enter .gtf or .gtf annotation file"
+      echo "$now Annotation file ${ANNOTATION} has the wrong format"
+      echo "$now Enter .gtf or .gtf annotation file"
       help_message
     fi
   fi
-  echo "Stored genome indices in ${INDICESDIR}"
-  echo "Finished generating STAR indices!"
-  date
+  echo "$now Stored genome indices in ${INDICESDIR}"
+  echo "$now Finished generating STAR indices!"
 fi
 
 if [[ $USEUMITOOLS == "yes" ]]; then
   R2_STAROUT=$STARDIR/$(basename $R2 fastq)
-  echo "Start STAR alignment: $R2"
-  echo "STAR Output = $R2_STAROUT"
+  echo "$now START STAR alignment: $R2"
+  echo "$now STAR Output = $R2_STAROUT"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $R2 \
     --outSAMtype BAM Unsorted \
     --outFileNamePrefix $R2_STAROUT \
     $STAROPTIONS
-  echo "Saved STAR output of $R2 in $R2_STAROUT"
-  echo "Finished STAR Alignment!"
-  date
+  echo "$now Finished STAR Alignment!"
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
   STARSOLO_DIR=$OUTPUT/STARsolo
   make_dir $STARSOLO_DIR
   R2_SOLO_OUT=$STARSOLO_DIR/$(basename $R2 fastq)
-  echo "Start STARsolo: Mapping, Demultiplexing and gene quantification"
-  echo "Input: $R1 and $R2"
+  echo "$now START STARsolo: Mapping, Demultiplexing and gene quantification"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
     --readFilesIn $R2 $R1 \
@@ -613,7 +581,7 @@ if [[ $USESTARSOLO == "yes" ]]; then
     --soloType Droplet \
     --soloCBwhitelist $STARWHITELIST \
     $STAROPTIONS
-  echo "Finished STARsolo run with $R1 and $R2"
+  echo "$now Finished STARsolo run with $R1 and $R2"
 fi
 
 # Count reads per gene with featureCounts
@@ -622,9 +590,9 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   make_dir $COUNTS
   INPUT=${R2_STAROUT}Aligned.out.bam
   COUNTOUT=${COUNTS}/$(basename $INPUT out.bam)counts.txt
-  echo "Start counting features with featureCounts!"
-  echo "Input: $INPUT"
-  echo "Output: $COUNTOUT"
+  echo "$now START counting features with featureCounts!"
+  echo "$now Input: $INPUT"
+  echo "$now Output: $COUNTOUT"
   $FEATURECOUNTS \
     -a $ANNOTATION \
     -o $COUNTOUT \
@@ -632,87 +600,88 @@ if [[ $USEUMITOOLS == "yes" ]]; then
     -T ${THREADS}
   SAMINPUT=$COUNTS/$(basename $INPUT).featureCounts.bam
   SAMOUTPUT=$COUNTS/$(basename $SAMINPUT .bam).sorted.bam  
-  echo "Start: Samtools sort!"
-  echo "Input: $SAMINPUT"
-  echo "Output: $SAMOUTPUT"
-  date
+  echo "$now Start: Samtools sort!"
+  echo "$now Input: $SAMINPUT"
+  echo "$now Output: $SAMOUTPUT"
   $SAMTOOLS sort --threads ${THREADS} ${SAMINPUT} \
     -o ${SAMOUTPUT}
-  echo "Finished: Samtools sort!"
-  date
-  echo "Start: Samtools index"
-  echo "Input: $SAMOUTPUT"
+  echo "$now Finished: Samtools sort!"
+  echo "$now START Samtools index"
+  echo "$now Input: $SAMOUTPUT"
   $SAMTOOLS index $SAMOUTPUT
   file_exists ${SAMOUTPUT}
-  echo "Finished: Samtools index"
+  echo "$now Finished: Samtools index"
 
   COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv
-  echo "Start: Demultiplexing counts with Umi-tools count!"
-  echo "Input: $SAMOUTPUT"
-  echo "Output: $COUNTFILE"
-  date
+  echo "$now Start: Demultiplexing counts with Umi-tools count!"
+  echo "$now Input: $SAMOUTPUT"
+  echo "$now Output: $COUNTFILE"
 
   $UMITOOLS count --per-gene \
     --gene-tag=XT --assigned-status-tag=XS \
     --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
 
-  echo "Finished: Umi-tools count"
-  echo "Stored count table in $COUNTFILE"
-  date
+  echo "$now Finished: Umi-tools count"
+  echo "$now Stored count table in $COUNTFILE"
 fi
 
-echo "Start processing of count table in R"
 cd $old_pwd
 if [[ $USEUMITOOLS == "yes" ]]; then
+  echo "$now START processing of UMI-tools count table in R"
   output_dir=$COUNTS/R_processed/
   make_dir $output_dir
   Rscript sc_analysis_gc.R "UMItools" $COUNTFILE $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir 
+  echo "$now Finished."
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
+  echo "$now START processing of STARsolo count table in R"
   count_dir=${R2_SOLO_OUT}Solo.out/
   output_dir=$STARSOLO_DIR/R_processed/
   make_dir $output_dir
   Rscript sc_analysis_gc.R "STARsolo" $COUNTFILE $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
+  echo "$now Finished."
 fi
 if [[ $USECELLRANGER == "yes" ]]; then
+  echo "$now START processing of CellRanger count table in R"
   count_dir=$CROUTPUT/$sample/outs/raw_feature_bc_matrix/
   output_dir=$CROUTPUT/R_processed/
   make_dir $output_dir
   Rscript sc_analysis_gc.R "CellRanger" $count_dir $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
+  echo "$now Finished."
 fi
 
-
-echo "Gzip File: $R1 and $R2"
-date
+echo "$now START gzip File: $R1 and $R2"
 gzip -f $R1 $R2
-echo "Finished: Gzip File $R1 and $R2"
-date
+echo "$now Finished: Gzip File $R1 and $R2"
 
 # remove unzipped annotation file - restore original file structure
 if [[ $ANNOZIP == 1 ]]; then
-  echo "Remove unzipped annotation file"
+  echo "$now Remove unzipped annotation file"
   rm $ANNOTATION
+  echo "$now Finished."
 fi
 # Remove unzipped whitelist file
 if [[ $UMIWHITEZIP == 1 ]]; then
   echo "Remove unzipped whitelist file: $WHITELIST"
   rm $WHITELIST
+  echo "$now Finished."
 fi
 
 echo "Compress previous compressed files"
 for file in ${GZCOMPRESSED[@]}; do
   echo "Remove unipped file: $file"
   rm $file
+  echo "$now Finished."
 done
 
 for file in ${BZ2COMPRESSED[@]}; do
-  echo "Remove unzipped file: $file"
+  echo "$now Remove unzipped file: $file"
   rm $file
+  echo "$now Finished."
 done
 
-echo "Finished: Compress Files"
-echo "End of Pipeline"
+echo "$now End of Pipeline"
 
