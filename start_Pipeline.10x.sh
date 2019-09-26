@@ -10,7 +10,7 @@ for dir in $(ls $input); do
     --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
     --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
     --indicesDir /media/data/Daniel/data/indices \
-    --qualityControl "no" \
+    --qualityControl "yes" \
     --trimming "no" \
     --data ${input}/${dir} \
     --read "R2" \
@@ -28,7 +28,7 @@ for dir in $(ls $input); do
     --featureCounts /media/data/tools/subread-1.6.4-Linux-x86_64/bin/featureCounts \
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
     --index "y" \
-    --threads 2 \
+    --threads 4 \
     --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt.gz" \
     --UMITOOLSwhitelist /media/data2/Daniel/Output/test/221932/Umi-Tools/221932_S4.whitelist.txt \
     --genWhitelist "yes" \

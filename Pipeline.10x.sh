@@ -427,6 +427,7 @@ if [[ $USECELLRANGER == "yes" ]]; then
   fi
   CROUTPUT=$OUTPUT/CellRanger/
   make_dir $CROUTPUT
+  old_pwd=pwd
   cd $CROUTPUT
   sample=$(basename $DATA)
   $CELLRANGER count \
@@ -661,11 +662,12 @@ if [[ $USEUMITOOLS == "yes" ]]; then
 fi
 
 echo "Start processing of count table in R"
+cd $old_pwd
 if [[ $USEUMITOOLS == "yes" ]]; then
   output_dir=$COUNTS/R_processed/
   make_dir $output_dir
   Rscript sc_analysis_gc.R "UMItools" $COUNTFILE $NGENES $NUMIS \
-    $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
+    $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir 
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
   count_dir=${R2_SOLO_OUT}Solo.out/
@@ -676,7 +678,6 @@ if [[ $USESTARSOLO == "yes" ]]; then
 fi
 if [[ $USECELLRANGER == "yes" ]]; then
   count_dir=$CROUTPUT/$sample/outs/raw_feature_bc_matrix/
-  gunzip $
   output_dir=$CROUTPUT/R_processed/
   make_dir $output_dir
   Rscript sc_analysis_gc.R "CellRanger" $count_dir $NGENES $NUMIS \
