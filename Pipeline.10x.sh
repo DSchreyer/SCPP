@@ -271,10 +271,7 @@ if [[ -z ${NORMALIZE+x} || $NORMALIZE == "" ]]; then
   NORMALIZE="yes"
 fi
 
-
-# create directories for essential outputs  
-MULTIQCDIR=$OUTPUT/MultiQC_output  
-
+# Create Output Directory
 make_dir $OUTPUT 
 
 
@@ -428,9 +425,10 @@ if [[ $USECELLRANGER == "yes" ]]; then
   CROUTPUT=$OUTPUT/CellRanger/
   make_dir $CROUTPUT
   cd $CROUTPUT
+  sample=$(basename $DATA)
   $CELLRANGER count \
-    --id=$(basename $DATA) \
-    --sample=$(basename $DATA) \
+    --id=$sample \
+    --sample=$sample \
     --transcriptome=$CR_TRANSCRIPTOME \
     --fastqs=$DATA \
     $LANES \
@@ -598,8 +596,9 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   date
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
-  make_dir $STARDIR/STARsolo
-  R2_SOLO_OUT=$STARDIR/STARsolo/$(basename $R2 fastq)
+  STARSOLO_DIR=$STARDIR/STARsolo
+  make_dir $STARSOLO_DIR
+  R2_SOLO_OUT=$STARSOLO_DIR/$(basename $R2 fastq)
   echo "Start STARsolo: Mapping, Demultiplexing and gene quantification"
   echo "Input: $R1 and $R2"
   $STAR --runThreadN $THREADS \
@@ -643,7 +642,7 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   file_exists ${SAMOUTPUT}
   echo "Finished: Samtools index"
 
-  COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv.gz
+  COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv
   echo "Start: Demultiplexing counts with Umi-tools count!"
   echo "Input: $SAMOUTPUT"
   echo "Output: $COUNTFILE"
@@ -651,7 +650,6 @@ if [[ $USEUMITOOLS == "yes" ]]; then
 
   $UMITOOLS count --per-gene \
     --gene-tag=XT --assigned-status-tag=XS \
-    --wide-format-cell-counts \
     --per-cell -I ${SAMOUTPUT} -S ${COUNTFILE}
 
   echo "Finished: Umi-tools count"
@@ -659,6 +657,26 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   date
 fi
 
+echo "Start processing of count table in R"
+if [[ $USEUMITOOLS == "yes" ]]; then
+  output_dir=$COUNTS/R_processed/
+  make_dir $output_dir
+  Rscript sc_analysis_gc.R "UMItools" $COUNTFILE" $NGENES $NUMIS \
+    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+fi
+if [[ $USESTARSOLO == "yes" ]]; then
+  count_dir=
+  output_dir=$STARSOLO_DIR/R_processed/
+  make_dir $output_dir
+  Rscript sc_analysis_gc.R "STARsolo" $COUNTFILE" $NGENES $NUMIS \
+    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+fi
+if [[ $USECELLRANGER == "yes" ]]; then
+  output_dir=$CROUTPUT/R_processed/
+  make_dir $output_dir
+  Rscript sc_analysis_gc.R "CellRanger" $COUNTFILE" $NGENES $NUMIS \
+    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+fi
 
 
 echo "Gzip File: $R1 and $R2"
