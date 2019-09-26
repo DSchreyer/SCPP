@@ -59,7 +59,6 @@ qcControl <- function(
   
   # generate an information table with additional information
   if (generate.info){
-    sample <-  sample
     n.libsize.drop <- sum(libsize.drop)
     n.feature.drop <- sum(feature.drop)
     n.mito.drop <- sum(mito.drop)
@@ -73,10 +72,10 @@ qcControl <- function(
     pct.mt.outlier.median <- median(sce$pct_counts_MT)
   }
   if (generate.info){
-    qc.info <- cbind(sample, before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
+    qc.info <- cbind(before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
                      median.gene, mean.umi, mean.gene, pct.mt.outlier.median, n.pct.mt.outlier)
     qc.info <- as.data.frame(qc.info)
-    write.table(qc.info, "samples_qc_info.csv", sep = ",", col.names = F)
+    write.table(qc.info, "samples_qc_info.csv", sep = ",", row.names = F)
   }
   return(sce)
 }
