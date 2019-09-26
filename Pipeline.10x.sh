@@ -161,8 +161,8 @@ do
       MAD="$2"
       shift
       ;;
-    --abundantMT)
-      ABUNDANTMT="$2"
+    --thresholdMT)
+      THRESHOLDMT="$2"
       shift
       ;;
     --filterGenes)
@@ -243,6 +243,9 @@ fi
 if [[ -z ${USECELLRANGER+x} || $USECELLRANGER == "" ]]; then
   USECELLRANGER="yes"
 fi
+if [[ -z ${TRIMMING+x} || $TRIMMING == "" ]]; then
+  TRIMMING="no"
+fi
 if [[ -z ${UMITOOLSWHITELIST+x} ]]; then
   UMITOOLSWHITELIST=""
 fi
@@ -261,8 +264,8 @@ fi
 if [[ -z ${MAD+x} || $MAD == "" ]]; then
   MAD="5"
 fi
-if [[ -z ${ABUNDANTMT+x} || $ABUNDANTMT == "" ]]; then
-  ABUNDANTMT="0.5"
+if [[ -z ${THRESHOLDMT+x} || $THRESHOLDMT == "" ]]; then
+  THRESHOLDMT="0.5"
 fi
 if [[ -z ${FILTERGENES+x} || $FILTERGENES == "" ]]; then
   FILTERGENES="0.001"
@@ -308,11 +311,11 @@ for file in ${FILES[@]}; do
       NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
       if [[ $R1_ZIP == ".gz" ]]; then
         echo "Decompress gz compressed File: $file"
-        gunzip $file 
+        gunzip --force --keep $file 
         GZCOMPRESSED+=($NEWFILE_R1)
       elif [[ $R1_ZIP == ".bz2" ]]; then
         echo "Decompress bzip2 compressed File: $file"
-        bzip2 -d $file
+        bzip2 --decompress --keep $file
         BZ2COMPRESSED+=($NEWFILE_R1)
       fi
       R1_ARRAY+=($NEWFILE_R1)
@@ -325,11 +328,11 @@ for file in ${FILES[@]}; do
       NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}
       if [[ $R2_ZIP == ".gz" ]]; then
         echo "Decompress gz compressed File: $file"
-        gunzip $file 
+        gunzip --force --keep $file 
         GZCOMPRESSED+=($NEWFILE_R2)
       elif [[ $R2_ZIP == ".bz2" ]]; then
         echo "Decompress bzip2 compressed File: $file"
-        bzip2 -d $file
+        bzip2 -d --force --keep $file
         BZ2COMPRESSED+=($NEWFILE_R2)
       fi
       R2_ARRAY+=($NEWFILE_R2)
@@ -437,13 +440,13 @@ fi
 
 # Unzip given whitelist for UMI-tools
 UMIWHITEZIP=0
-if [[ $USEUMITOOLS && $UMITOOLSwhitelist =~ .*.gz ]]
+if [[ $USEUMITOOLS && $UMITOOLSWHITELIST =~ .*.gz ]]
 then
-  echo "unzip whitelist: $UMITOOLSwhitelist"
-  WHITELIST_UNZIP=$(echo "${UMITOOLSwhitelist}" | sed 's/.gz$//')
+  echo "unzip whitelist: $UMITOOLSWHITELIST"
+  WHITELIST_UNZIP=$(echo "${UMITOOLSWHITELIST}" | sed 's/.gz$//')
   if [[ ! -f $WHITELIST_UNZIP ]]; then
-    echo "Unzip whitelist file: $UMITOOLSwhitelist"
-    gunzip --keep "${UMITOOLSwhitelist}"
+    echo "Unzip whitelist file: $UMITOOLSWHITELIST"
+    gunzip --keep "${UMITOOLSWHITELIST}"
     UMIWHITEZIP=1
   fi
   UMIWHITELIST=$WHITELIST_UNZIP
@@ -596,7 +599,7 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   date
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
-  STARSOLO_DIR=$STARDIR/STARsolo
+  STARSOLO_DIR=$OUTPUT/STARsolo
   make_dir $STARSOLO_DIR
   R2_SOLO_OUT=$STARSOLO_DIR/$(basename $R2 fastq)
   echo "Start STARsolo: Mapping, Demultiplexing and gene quantification"
@@ -614,7 +617,7 @@ fi
 
 # Count reads per gene with featureCounts
 if [[ $USEUMITOOLS == "yes" ]]; then
-  COUNTS=${OUTPUT}/counts
+  COUNTS=${UMITOOLSDIR}/counts
   make_dir $COUNTS
   INPUT=${R2_STAROUT}Aligned.out.bam
   COUNTOUT=${COUNTS}/$(basename $INPUT out.bam)counts.txt
@@ -661,21 +664,23 @@ echo "Start processing of count table in R"
 if [[ $USEUMITOOLS == "yes" ]]; then
   output_dir=$COUNTS/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "UMItools" $COUNTFILE" $NGENES $NUMIS \
-    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+  Rscript sc_analysis_gc.R "UMItools" $COUNTFILE $NGENES $NUMIS \
+    $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
-  count_dir=
+  count_dir=${R2_SOLO_OUT}Solo.out/
   output_dir=$STARSOLO_DIR/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "STARsolo" $COUNTFILE" $NGENES $NUMIS \
-    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+  Rscript sc_analysis_gc.R "STARsolo" $COUNTFILE $NGENES $NUMIS \
+    $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
 fi
 if [[ $USECELLRANGER == "yes" ]]; then
+  count_dir=$CROUTPUT/$sample/outs/raw_feature_bc_matrix/
+  gunzip $
   output_dir=$CROUTPUT/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "CellRanger" $COUNTFILE" $NGENES $NUMIS \
-    $MAD $ABUNDANTMT $NORMALIZE $FILTERGENES $output_dir
+  Rscript sc_analysis_gc.R "CellRanger" $count_dir $NGENES $NUMIS \
+    $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
 fi
 
 
@@ -698,13 +703,13 @@ fi
 
 echo "Compress previous compressed files"
 for file in ${GZCOMPRESSED[@]}; do
-  echo "Gzip File: $file"
-  gzip -f $file
+  echo "Remove unipped file: $file"
+  rm $file
 done
 
 for file in ${BZ2COMPRESSED[@]}; do
-  echo "Bz2 File: $file"
-  bzip2 -f $file
+  echo "Remove unzipped file: $file"
+  rm $file
 done
 
 echo "Finished: Compress Files"

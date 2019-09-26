@@ -1,7 +1,7 @@
 #!/bin/bash
 
 input="/media/data2/Daniel/test_pipeline_data//"
-output="/media/data2/Daniel/Output/test/"
+output="/media/data2/Daniel/Output/test_application/"
 
 for dir in $(ls $input); do
   echo "Start pipeline with Sample $dir!"
@@ -15,9 +15,9 @@ for dir in $(ls $input); do
     --data ${input}/${dir} \
     --read "R2" \
     --barcode "R1" \
-    --useCellranger "no" \
+    --useCellranger "yes" \
     --CRoptions "" \
-    --useSTARsolo "no" \
+    --useSTARsolo "yes" \
     --useUMItools "yes" \
     --STARoptions "" \
     --cellrangerTranscriptome /media/data2/Daniel/cellranger_test/refdata-cellranger-mm10-3.0.0 \
@@ -29,15 +29,15 @@ for dir in $(ls $input); do
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
     --index "y" \
     --threads 2 \
-    --STARwhitelist "" \
+    --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt.gz" \
     --UMITOOLSwhitelist /media/data2/Daniel/Output/test/221932/Umi-Tools/221932_S4.whitelist.txt \
     --genWhitelist "yes" \
     --trimOptions "TRAILING:20 HEADCROP:20 MINLEN:75" \
     --useLanes "all" \
     --nGenes "100" \
-    --nUMIs "" \
-    --MAD "" \
-    --abundantMT 0.5 \
+    --nUMIs "125" \
+    --MAD "5" \
+    --thresholdMT 0.5 \
     --filterGenes 0.001 \
     --normalize "yes" \
     --cellranger "/media/data/Daniel/cellranger-3.0.2/cellranger" \
