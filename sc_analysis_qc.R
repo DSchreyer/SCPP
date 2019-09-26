@@ -1,8 +1,6 @@
 library(scater)
 library(Seurat)
 library(Matrix)
-library(dplyr)
-file = "/home/daniel/master_thesis/bassoon_data/test.counts.tsv"
 # Remove cells with less than [int] UMI counts and less than [int] expressed genes
 filterCountTable <- function(
   file,
@@ -31,7 +29,6 @@ filterCountTable <- function(
   data <- data[ , filter.expressed.genes]
   return(data)
 }
-
 # Remove outlier cells based on MAD
 # Outliers are determined on library size, MT genes expressed, and expressed genes
 qcControl <- function(
@@ -75,7 +72,6 @@ qcControl <- function(
     n.pct.mt.outlier <- sum(pct.mt.outliers)
     pct.mt.outlier.median <- median(sce$pct_counts_MT)
   }
-  i <- i + 1
   if (generate.info){
     qc.info <- cbind(sample, before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
                      median.gene, mean.umi, mean.gene, pct.mt.outlier.median, n.pct.mt.outlier)
