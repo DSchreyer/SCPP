@@ -135,7 +135,6 @@ mt.threshold <- as.numeric(options[6])
 normalize <- as.character(options[7])
 filter.genes <- as.numeric(options[8])
 output.dir <- options[9]
-
 if (branch == "UMItools"){
   count.table <- filterCountTable(file = counts, 
                                   umi.count = n.umis, 
