@@ -25,6 +25,10 @@ do
       QC="$2"
       shift # shift arguments to the left = $2 -> $1
       ;;
+    --pipeline) # Perform quality control?
+      PIPELINE="$2"
+      shift # shift arguments to the left = $2 -> $1
+      ;;
     --trimming) # Perform quality control?
       TRIMMING="$2"
       shift # shift arguments to the left = $2 -> $1
@@ -204,6 +208,9 @@ file_exists (){
 }
 
 # Set default parameters
+if [[ -z ${PIPELINE+x} || $PIPELINE == "" ]]; then
+  PIPELINE=$(pwd)/Pipeline.10x.sh
+fi
 if [[ -z ${GENOMEINDEX+x} || $GENOMEINDEX == "" ]]; then
   GENOMEINDEX="yes"
 fi
@@ -264,7 +271,6 @@ fi
 if [[ -z ${NORMALIZE+x} || $NORMALIZE == "" ]]; then
   NORMALIZE="yes"
 fi
-
 # Create Output Directory
 make_dir $OUTPUT 
 
@@ -273,21 +279,27 @@ now=$(date +%d-%m-%Y" "%X" |")
 
 # Sequencing files
 FILES=$(ls -d $DATA/*)
-
+# Sample Name
+sample=$(basename $DATA)
+PIPELINE_DIR=$(dirname $PIPELINE)
 # READ1 stores each fastq file with barcodes and umis, READ2 contains cDNA read
 READ1_ARRAY=()
 READ2_ARRAY=()
 GZCOMPRESSED=()
 BZ2COMPRESSED=()
 
-
+echo "$now START Single-Cell RNA-seq Processing Pipeline"
+echo "$now Input: $sample"
+echo "$now Output: $OUTPUT"
 if [[ $LANES == "all" ]]; then
   use_lanes="L[0-9]*"
+  LANES="_all_"
 else
   OIFS=$IFS
   IFS=","
   use_lanes=($LANES)
   IFS=$OIFS
+  CRLANES=$LANES
   LANES=$(echo $LANES | sed 's/,/_/g')
 fi
 
@@ -384,8 +396,8 @@ fi
 if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
   MERGED=$OUTPUT/Files
   make_dir $MERGED
-  R1=${MERGED}/${R1_SAMPLE}_${LANES}_${BARCODE}_001.${R1_FORMAT}
-  R2=${MERGED}/${R2_SAMPLE}_${LANES}_${READ}_001.${R2_FORMAT}
+  R1=${MERGED}/${R1_SAMPLE}${LANES}${BARCODE}_001.${R1_FORMAT}
+  R2=${MERGED}/${R2_SAMPLE}${LANES}${READ}_001.${R2_FORMAT}
   STARDIR=$OUTPUT/STAR_output
   make_dir $STARDIR
   if [[ ${#R2_ARRAY[@]} -eq 1 ]]; then
@@ -394,8 +406,10 @@ if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
   elif [[ ${#R2_ARRAY[@]} -gt 1 ]]; then
     echo "$now Concatenate Read 1 Files"
     cat ${R1_ARRAY[@]} > $R1
+    R1_STAR=$R1
     echo "$now Concatenate Read 2 Files"
     cat ${R2_ARRAY[@]} > $R2
+    R2_STAR=$R2
     echo "$now Concatenate ${R2_ARRAY[@]}"
   else
     echo "$now No read file is stored in $DATA!"
@@ -406,60 +420,69 @@ echo "$now Stored Fastq file in $MERGED"
 
 # Use CellRanger branch by specifying useCellranger "yes"
 if [[ $USECELLRANGER == "yes" ]]; then
-  if [[ $LANES == "all" ]]; then
-    LANES=""
+  if [[ $LANES == "_all_" ]]; then
+    CRLANES=""
   else
-    LANES="--lanes $LANES"
+    CRLANES="--lanes $CRLANES"
   fi
   CROUTPUT=$OUTPUT/CellRanger/
   make_dir $CROUTPUT
-  old_pwd=pwd
+  old_pwd=$(pwd)
   cd $CROUTPUT
-  sample=$(basename $DATA)
   echo "$now Start CellRanger"
   $CELLRANGER count \
     --id=$sample \
     --sample=$sample \
     --transcriptome=$CR_TRANSCRIPTOME \
     --fastqs=$DATA \
-    $LANES \
+    $CRLANES \
     $CROPTIONS
   echo "$now Finished CellRanger"
 fi
-
 # Unzip given whitelist for UMI-tools
 UMIWHITEZIP=0
-if [[ $USEUMITOOLS && $UMITOOLSWHITELIST =~ .*.gz ]]
-then
+if [[ $USEUMITOOLS && $UMITOOLSWHITELIST =~ .*.gz ]]; then
   WHITELIST_UNZIP=$(echo "${UMITOOLSWHITELIST}" | sed 's/.gz$//')
   if [[ ! -f $WHITELIST_UNZIP ]]; then
     echo "$now Unzip whitelist file: $UMITOOLSWHITELIST"
-    gunzip --keep "${UMITOOLSWHITELIST}"
+    gunzip --keep --force "${UMITOOLSWHITELIST}"
     UMIWHITEZIP=1
     echo "$now Finished."
   fi
   UMIWHITELIST=$WHITELIST_UNZIP
 fi
+if [[ $USESTARSOLO && $STARWHITELIST =~ .*.gz ]]; then
+  STAR_WHITELIST_UNZIP=$(echo "${STARWHITELIST}" | sed 's/.gz$//')
+  if [[ ! -f $STAR_WHITELIST_UNZIP ]]; then
+    echo "$now Unzip whitelist file: $STARWHITELIST"
+    gunzip --keep --force "${STARWHITELIST}"
+    STARWHITEZIP=1
+    echo "$now Finished."
+  fi
+  STARWHITELIST=$STAR_WHITELIST_UNZIP
+fi
 
 # Umi-Tools
 # Identify correct cell barcodes
 if [[ $gen_whitelist == "yes" ]]; then
-  UMITOOLSDIR=${OUTPUT}/Umi-Tools
-  make_dir $UMITOOLSDIR
-  WHITELIST=$UMITOOLSDIR/${R1_SAMPLE}.whitelist.txt
-  echo "$now START Umi-Tools whitelist: $R1"
-  $UMITOOLS whitelist \
-    --stdin $R1 \
-    --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
-    --method=umis \
-    --log2stderr > $WHITELIST
-  echo "$now END Umi-Tools whitelist: $R1" 
-  if [[ $UMITOOLSWHITELIST == "" && $USEUMITOOLS == "yes" ]]; then
-    UMITOOLSWHITELIST=$WHITELIST
-  fi
-  if [[ $STARWHITELIST == "" && $USESTARSOLO == "yes" ]]; then
-    STARWHITELIST=$UMITOOLSDIR/$(basename $WHITELIST .txt).STAR.txt
-    cat $WHITELIST | awk '{print $1}' > $STARWHITELIST
+  if [[ ($USEUMITOOLS == "yes" && $UMITOOLSWHITELIST == "") || ($USESTARSOLO == "yes" && $STARWHITELIST == "") ]]; then
+    UMITOOLSDIR=${OUTPUT}/Umi-Tools
+    make_dir $UMITOOLSDIR
+    WHITELIST=$UMITOOLSDIR/${sample}.whitelist.txt
+    echo "$now START Umi-Tools whitelist: $R1"
+    $UMITOOLS whitelist \
+      --stdin $R1 \
+      --bc-pattern=CCCCCCCCCCCCCCCCNNNNNNNNNN \
+      --method=umis \
+      --log2stderr > $WHITELIST
+    echo "$now END Umi-Tools whitelist: $R1" 
+    if [[ $UMITOOLSWHITELIST == "" && $USEUMITOOLS == "yes" ]]; then
+      UMITOOLSWHITELIST=$WHITELIST
+    fi
+    if [[ $STARWHITELIST == "" && $USESTARSOLO == "yes" ]]; then
+      STARWHITELIST=$UMITOOLSDIR/${sample}.STAR.whitelist.txt
+      cat $WHITELIST | awk '{print $1}' > $STARWHITELIST
+    fi
   fi
 fi
 
@@ -470,8 +493,8 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   EXTRACTED_UMIS=()
   DEMUX_FILES=()
   EXT="_extracted"
-  R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${R1_LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
-  R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${R2_LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
+  R1_EXT=$UMITOOLSDIR/${R1_SAMPLE}${LANES}${BARCODE}${EXT}_001.${R1_FORMAT}${R1_ZIP}
+  R2_EXT=$UMITOOLSDIR/${R2_SAMPLE}${LANES}${READ}${EXT}_001.${R2_FORMAT}${R2_ZIP}
   echo "$now START Umi-Tools extract: $R1 and $R2"
   $UMITOOLS extract \
     --stdin $R1 \
@@ -490,7 +513,6 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   R1=$R1_EXT
   R2=$R2_EXT
 fi
-
 
 # gunzip gzipped reference genome fasta file
 if [[ $GENOME =~ .*fa.gz ]]
@@ -518,7 +540,6 @@ if [[ $ANNOTATION =~ .*gtf.gz$|.*gff.gz$ ]]; then
   fi
 fi
 echo "$now" Annotation File = "${ANNOTATION}"
-
 # GENOMEINDEX stores user input, if genome indices were already generated
 
 # with anno file: generate indices with it | without: generate indices without
@@ -571,11 +592,13 @@ fi
 if [[ $USESTARSOLO == "yes" ]]; then
   STARSOLO_DIR=$OUTPUT/STARsolo
   make_dir $STARSOLO_DIR
-  R2_SOLO_OUT=$STARSOLO_DIR/$(basename $R2 fastq)
+  R2_SOLO_OUT=$STARSOLO_DIR/${sample}${LANES}
   echo "$now START STARsolo: Mapping, Demultiplexing and gene quantification"
+  echo "$now Input: R2: $R2 & R1: $R1"
+  echo "$now Whitelist: $STARWHITELIST"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
-    --readFilesIn $R2 $R1 \
+    --readFilesIn $R2_STAR $R1_STAR \
     --outSAMtype BAM Unsorted \
     --outFileNamePrefix $R2_SOLO_OUT \
     --soloType Droplet \
@@ -612,7 +635,7 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   file_exists ${SAMOUTPUT}
   echo "$now Finished: Samtools index"
 
-  COUNTFILE=${COUNTS}/$(basename $SAMOUTPUT .bam).tsv
+  COUNTFILE=${COUNTS}/$(basename $COUNTOUT .txt).matrix.tsv
   echo "$now Start: Demultiplexing counts with Umi-tools count!"
   echo "$now Input: $SAMOUTPUT"
   echo "$now Output: $COUNTFILE"
@@ -624,33 +647,41 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   echo "$now Finished: Umi-tools count"
   echo "$now Stored count table in $COUNTFILE"
 fi
-
+echo $(pwd)
 cd $old_pwd
+echo $(pwd)
+echo "old pwd $old_pwd"
+QC_SCRIPT=$PIPELINE_DIR/sc_analysis_qc.R
 if [[ $USEUMITOOLS == "yes" ]]; then
   echo "$now START processing of UMI-tools count table in R"
+  echo "$now Input: $COUNTFILE"
   output_dir=$COUNTS/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "UMItools" $COUNTFILE $NGENES $NUMIS \
+  Rscript $QC_SCRIPT "UMItools" $COUNTFILE $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir 
   echo "$now Finished."
+  echo "$now Output: $output_dir"
 fi
 if [[ $USESTARSOLO == "yes" ]]; then
-  echo "$now START processing of STARsolo count table in R"
   count_dir=${R2_SOLO_OUT}Solo.out/
   output_dir=$STARSOLO_DIR/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "STARsolo" $COUNTFILE $NGENES $NUMIS \
+  echo "$now START processing of STARsolo count table in R"
+  echo "$now Input: $count_dir"
+  Rscript $QC_SCRIPT "STARsolo" $count_dir $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
   echo "$now Finished."
+  echo "$now Output: $output_dir"
 fi
 if [[ $USECELLRANGER == "yes" ]]; then
   echo "$now START processing of CellRanger count table in R"
   count_dir=$CROUTPUT/$sample/outs/raw_feature_bc_matrix/
-  output_dir=$CROUTPUT/R_processed/
+  output_dir=$CROUTPUT/$sample/R_processed/
   make_dir $output_dir
-  Rscript sc_analysis_gc.R "CellRanger" $count_dir $NGENES $NUMIS \
+  Rscript $QC_SCRIPT "CellRanger" $count_dir $NGENES $NUMIS \
     $MAD $THRESHOLDMT $NORMALIZE $FILTERGENES $output_dir
   echo "$now Finished."
+  echo "$now Output: $output_dir"
 fi
 
 echo "$now START gzip File: $R1 and $R2"
@@ -665,8 +696,13 @@ if [[ $ANNOZIP == 1 ]]; then
 fi
 # Remove unzipped whitelist file
 if [[ $UMIWHITEZIP == 1 ]]; then
-  echo "Remove unzipped whitelist file: $WHITELIST"
-  rm $WHITELIST
+  echo "Remove unzipped whitelist file: $UMITOOLSWHITELIST"
+  rm $UMITOOLSWHITELIST
+  echo "$now Finished."
+fi
+if [[ $STARWHITEZIP == 1 ]]; then
+  echo "Remove unzipped whitelist file: $STARWHITELIST"
+  rm $STARWHITELIST
   echo "$now Finished."
 fi
 
