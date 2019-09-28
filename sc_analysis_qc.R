@@ -1,6 +1,6 @@
-library(scater)
-library(Seurat)
-library(Matrix)
+library(scater, warn.conflicts = F)
+library(Seurat, warn.conflicts = F)
+library(Matrix, warn.conflicts = F)
 # Remove cells with less than [int] UMI counts and less than [int] expressed genes
 filterCountTable <- function(
   file,
