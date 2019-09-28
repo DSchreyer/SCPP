@@ -137,13 +137,10 @@ filter.genes <- as.numeric(options[8])
 output.dir <- options[9]
 
 if (branch == "UMItools"){
-  table <- read.table(counts, sep = "\t", header=TRUE, stringsAsFactors = F)
-  rownames(table) <- table[, 1]
-  table[, 1] <- NULL
   count.table <- filterCountTable(file = counts, 
                                   umi.count = n.umis, 
                                   expressed.genes = n.genes,
-                                  matrix = TRUE)
+                                  umitools = TRUE)
   
 }else{
   count.table <- filterCountTable(file = counts, 
