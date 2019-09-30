@@ -1,7 +1,7 @@
 #!/bin/bash
 
-input="/media/data2/Daniel/test_pipeline_data//"
-output="/media/data2/Daniel/Output/test_application/"
+input="/media/data2/Daniel/test//"
+output="/media/data2/Daniel/Output/Comparative_analyses"
 
 for dir in $(ls $input); do
   echo "Start pipeline with Sample $dir!"
