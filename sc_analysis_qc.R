@@ -100,6 +100,14 @@ writeCountMatrix <- function(
   gene.expressed.cells = 0.001
 ){
   setwd(output.dir)
+  if (filter.genes){
+    sce <- geneFiltering(object = sce, gene.expr = gene.expressed.cells)
+  }
+  features <- rownames(sce)
+  barcodes <- colnames(sce)
+  write(features, file = "genes.tsv")
+  write(barcodes, file = "barcodes.tsv")
+  
   if (log.normalize == "yes"){
     seurat.object <- as.Seurat(sce, data = "counts")
     seurat.object <- NormalizeData(seurat.object, 
@@ -107,21 +115,10 @@ writeCountMatrix <- function(
                                    scale.factor = 1000, 
                                    verbose = FALSE)
     log.counts <- GetAssayData(seurat.object)
-    if (filter.genes){
-      log.counts <- SingleCellExperiment(assays = list(counts = log.counts))
-      log.counts <- geneFiltering(log.counts, gene.expr = gene.expressed.cells)
-      log.counts <- counts(log.counts)
-    }
-    writeMM(log.counts, file = "log.normalized.matrix.mtx")
+    writeMM(log.counts, file = "matrix.mtx")
+  }else{
+    writeMM(counts(sce), file = "matrix.mtx")
   }
-  if (filter.genes){
-    sce <- geneFiltering(object = sce, gene.expr = gene.expressed.cells)
-  }
-  features <- rownames(sce)
-  barcodes <- colnames(sce)
-  write(features, file = "features.tsv")
-  write(barcodes, file = "barcodes.tsv")
-  writeMM(counts(sce), file = "raw.matrix.mtx")
 }
 
 options <- commandArgs(trailingOnly = TRUE)
