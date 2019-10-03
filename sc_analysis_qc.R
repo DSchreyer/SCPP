@@ -35,7 +35,7 @@ qcControl <- function(
   count.table,
   MAD = 3, 
   abundant.mt = 1,
-  generate.info = FALSE
+  generate.info = TRUE
 ){
   # Create SingleCellExperiment object with sparse matrix
   sce <- SingleCellExperiment(assays = list(counts = count.table))
@@ -116,7 +116,8 @@ writeCountMatrix <- function(
                                    verbose = FALSE)
     log.counts <- GetAssayData(seurat.object)
     writeMM(log.counts, file = "matrix.mtx")
-  }else{
+    writeMM(counts(sce), file = "raw.matrix.mtx")
+  } else {
     writeMM(counts(sce), file = "matrix.mtx")
   }
 }
