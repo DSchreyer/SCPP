@@ -305,48 +305,52 @@ else
   CRLANES=$LANES
   LANES=$(echo $LANES | sed 's/,/_/g')
 fi
-
-for file in ${FILES[@]}; do
-  for lane in ${use_lanes[@]}; do
-    if [[ $lane =~ "[0-9]{3}" ]]; then
-      lane=$(printf "L%03d" $lane)
-    fi
-    if [[ $file =~ ^(.*)/(.*)(_${lane}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-      R1_SAMPLE=${BASH_REMATCH[2]}
-      R1_LANES=${BASH_REMATCH[3]}
-      R1_FORMAT=${BASH_REMATCH[4]}
-      R1_ZIP=${BASH_REMATCH[5]}
-      NEWFILE_R1=${DATA}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
-      if [[ $R1_ZIP == ".gz" ]]; then
-        echo "Decompress gz compressed File: $file"
-        gunzip --force --keep $file 
-        GZCOMPRESSED+=($NEWFILE_R1)
-      elif [[ $R1_ZIP == ".bz2" ]]; then
-        echo "Decompress bzip2 compressed File: $file"
-        bzip2 --decompress --keep $file
-        BZ2COMPRESSED+=($NEWFILE_R1)
+if [[ $USESTARSOLO == "yes" || $USEUMITOOLS == "yes" ]]; then
+  for file in ${FILES[@]}; do
+    MERGED=$OUTPUT/Files
+    make_dir $MERGED
+    for lane in ${use_lanes[@]}; do
+      if [[ $lane =~ "[0-9]{3}" ]]; then
+        lane=$(printf "L%03d" $lane)
       fi
-      R1_ARRAY+=($NEWFILE_R1)
-      break
-    elif [[ $file =~ ^(.*)/(.*)(_${lane}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
-      R2_SAMPLE=${BASH_REMATCH[2]}
-      R2_LANES=${BASH_REMATCH[3]}
-      R2_FORMAT=${BASH_REMATCH[4]}
-      R2_ZIP=${BASH_REMATCH[5]}
-      NEWFILE_R2=${DATA}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}
-      if [[ $R2_ZIP == ".gz" ]]; then
-        echo "Decompress gz compressed File: $file"
-        gunzip --force --keep $file 
-        GZCOMPRESSED+=($NEWFILE_R2)
-      elif [[ $R2_ZIP == ".bz2" ]]; then
-        echo "Decompress bzip2 compressed File: $file"
-        bzip2 -d --force --keep $file
-        BZ2COMPRESSED+=($NEWFILE_R2)
+      if [[ $file =~ ^(.*)/(.*)(_${lane}_)${BARCODE}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+        R1_SAMPLE=${BASH_REMATCH[2]}
+        R1_LANES=${BASH_REMATCH[3]}
+        R1_FORMAT=${BASH_REMATCH[4]}
+        R1_ZIP=${BASH_REMATCH[5]}
+        NEWFILE_R1=${MERGED}/${R1_SAMPLE}${R1_LANES}${BARCODE}_001.${R1_FORMAT}
+        if [[ $R1_ZIP == ".gz" ]]; then
+          echo "Decompress gz compressed File: $file"
+          gunzip --force --keep -c $file > $NEWFILE_R1
+          GZCOMPRESSED+=($NEWFILE_R1)
+        elif [[ $R1_ZIP == ".bz2" ]]; then
+          echo "Decompress bzip2 compressed File: $file"
+          bzip2 --decompress --keep -c $file > $NEWFILE_R1
+          BZ2COMPRESSED+=($NEWFILE_R1)
+        fi
+        R1_ARRAY+=($NEWFILE_R1)
+        break
+      elif [[ $file =~ ^(.*)/(.*)(_${lane}_)${READ}_001\.(fastq|fq)(\.gz|\.bz2)* ]]; then
+        R2_SAMPLE=${BASH_REMATCH[2]}
+        R2_LANES=${BASH_REMATCH[3]}
+        R2_FORMAT=${BASH_REMATCH[4]}
+        R2_ZIP=${BASH_REMATCH[5]}
+        NEWFILE_R2=${MERGED}/${R2_SAMPLE}${R2_LANES}${READ}_001.${R2_FORMAT}
+        if [[ $R2_ZIP == ".gz" ]]; then
+          echo "Decompress gz compressed File: $file"
+          gunzip --force --keep -c $file > $NEWFILE_R2
+          GZCOMPRESSED+=($NEWFILE_R2)
+        elif [[ $R2_ZIP == ".bz2" ]]; then
+          echo "Decompress bzip2 compressed File: $file"
+          bzip2 -d --force --keep -c $file > $NEWFILE_R2
+          BZ2COMPRESSED+=($NEWFILE_R2)
+        fi
+        R2_ARRAY+=($NEWFILE_R2)
       fi
-      R2_ARRAY+=($NEWFILE_R2)
-    fi
+    done
   done
-done
+fi
+
 # Quality Control with all files in the data Directory --- FastQC
 if [[ $QC == "yes" ]]; then
   FASTQCDIR=$OUTPUT/FastQC_output    
@@ -397,7 +401,6 @@ fi
 
 # Merge fastq files together. Only used in UMI tools or STARsolo branch
 if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
-  MERGED=$OUTPUT/Files
   make_dir $MERGED
   R1=${MERGED}/${R1_SAMPLE}${LANES}${BARCODE}_001.${R1_FORMAT}
   R2=${MERGED}/${R2_SAMPLE}${LANES}${READ}_001.${R2_FORMAT}
@@ -514,7 +517,6 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   echo "$now END Umi-Tools extract: $R1 and $R2"
   echo "$now Stored: $R1_EXT and $R2_EXT"
   R1=$R1_EXT
-  R2=$R2_EXT
 fi
 
 # gunzip gzipped reference genome fasta file
@@ -688,12 +690,10 @@ if [[ $USECELLRANGER == "yes" ]]; then
 fi
 
 echo "$now Remove generated FastQ files:"
-if [[ $USEUMITOOLS == "yes" ]]; then
-  rm -f $R1 $R2
-fi
 if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
+  rm -f $R1 $R2
   rm -f $R1_STAR $R2_STAR
-  rmdir $MERGED
+  rmdir -f $MERGED
 fi
 
 # remove unzipped annotation file - restore original file structure
