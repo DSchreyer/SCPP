@@ -250,6 +250,9 @@ fi
 if [[ -z ${STARWHITELIST+x} ]]; then
   STARWHITELIST=""
 fi
+if [[ -z ${gen_whitelist+x} ]]; then
+  gen_whitelist="yes"
+fi
 if [[ -z ${USESTARSOLO+x} || $USESTARSOLO == "" ]]; then
   USESTARSOLO="no"
 fi
@@ -410,7 +413,6 @@ if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
     echo "$now Concatenate Read 2 Files"
     cat ${R2_ARRAY[@]} > $R2
     R2_STAR=$R2
-    echo "$now Concatenate ${R2_ARRAY[@]}"
   else
     echo "$now No read file is stored in $DATA!"
     help_message
@@ -435,6 +437,7 @@ if [[ $USECELLRANGER == "yes" ]]; then
     --sample=$sample \
     --transcriptome=$CR_TRANSCRIPTOME \
     --fastqs=$DATA \
+    --nosecondary \
     $CRLANES \
     $CROPTIONS
   echo "$now Finished CellRanger"
@@ -594,7 +597,7 @@ if [[ $USESTARSOLO == "yes" ]]; then
   make_dir $STARSOLO_DIR
   R2_SOLO_OUT=$STARSOLO_DIR/${sample}${LANES}
   echo "$now START STARsolo: Mapping, Demultiplexing and gene quantification"
-  echo "$now Input: R2: $R2 & R1: $R1"
+  echo "$now Input: R2: $R2_STAR & R1: $R1_STAR"
   echo "$now Whitelist: $STARWHITELIST"
   $STAR --runThreadN $THREADS \
     --genomeDir "${INDICESDIR}" \
@@ -604,7 +607,7 @@ if [[ $USESTARSOLO == "yes" ]]; then
     --soloType Droplet \
     --soloCBwhitelist $STARWHITELIST \
     $STAROPTIONS
-  echo "$now Finished STARsolo run with $R1 and $R2"
+  echo "$now Finished STARsolo run with $R1_STAR and $R2_STAR"
 fi
 
 # Count reads per gene with featureCounts
@@ -684,9 +687,14 @@ if [[ $USECELLRANGER == "yes" ]]; then
   echo "$now Output: $output_dir"
 fi
 
-echo "$now START gzip File: $R1 and $R2"
-gzip -f $R1 $R2
-echo "$now Finished: Gzip File $R1 and $R2"
+echo "$now Remove generated FastQ files:"
+if [[ $USEUMITOOLS == "yes" ]]; then
+  rm -f $R1 $R2
+fi
+if [[ $USEUMITOOLS == "yes" || $USESTARSOLO == "yes" ]]; then
+  rm -f $R1_STAR $R2_STAR
+  rmdir $MERGED
+fi
 
 # remove unzipped annotation file - restore original file structure
 if [[ $ANNOZIP == 1 ]]; then

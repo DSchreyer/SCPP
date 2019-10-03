@@ -1,7 +1,7 @@
 #!/bin/bash
 
-input="/media/data2/Daniel/test//"
-output="/media/data2/Daniel/Output/Comparative_analyses"
+input="/media/data2/Daniel/test/"
+output="/media/data2/Daniel/Output/comparative_analysis"
 
 for dir in $(ls $input); do
   echo "Start pipeline with Sample $dir!"
@@ -29,8 +29,8 @@ for dir in $(ls $input); do
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
     --index "y" \
     --threads 4 \
-    --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt.gz" \
-    --UMITOOLSwhitelist /media/data2/Daniel/Output/test/221932/Umi-Tools/221932_S4.whitelist.txt \
+    --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt" \
+    --UMITOOLSwhitelist "" \
     --genWhitelist "yes" \
     --trimOptions "TRAILING:20 HEADCROP:20 MINLEN:75" \
     --useLanes "all" \
