@@ -37,7 +37,8 @@ qcControl <- function(
   count.table,
   MAD = 3, 
   abundant.mt = 1,
-  generate.info = TRUE
+  generate.info = TRUE,
+  output.dir = ""
 ){
   # Create SingleCellExperiment object with sparse matrix
   sce <- SingleCellExperiment(assays = list(counts = count.table))
@@ -77,7 +78,7 @@ qcControl <- function(
     qc.info <- cbind(before.qc, after.qc, n.libsize.drop, n.feature.drop, n.mito.drop, median.umi,
                      median.gene, mean.umi, mean.gene, pct.mt.outlier.median, n.pct.mt.outlier)
     qc.info <- as.data.frame(qc.info)
-    write.table(qc.info, "samples_qc_info.csv", sep = ",", row.names = F)
+    write.table(qc.info, file = paste0(output.dir, "/samples_qc_info.csv"), sep = ",", row.names = F)
   }
   return(sce)
 }
@@ -148,8 +149,9 @@ if (branch == "UMItools"){
 }
 
 sce <- qcControl(count.table = count.table,
-                      MAD = MAD,
-                      generate.info = TRUE)
+                 MAD = MAD,
+                 generate.info = TRUE, 
+                 output.dir = output.dir)
 
 writeCountMatrix(sce = sce, 
                  log.normalize = normalize, 
