@@ -517,6 +517,7 @@ if [[ $USEUMITOOLS == "yes" ]]; then
   echo "$now END Umi-Tools extract: $R1 and $R2"
   echo "$now Stored: $R1_EXT and $R2_EXT"
   R1=$R1_EXT
+  R2=$R2_EXT
 fi
 
 # gunzip gzipped reference genome fasta file

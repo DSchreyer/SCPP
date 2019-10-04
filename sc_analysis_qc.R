@@ -1,3 +1,5 @@
+#!/bin/env Rscript
+
 library(scater, warn.conflicts = F)
 library(Seurat, warn.conflicts = F)
 library(Matrix, warn.conflicts = F)
