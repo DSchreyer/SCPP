@@ -151,13 +151,13 @@ if (branch == "UMItools"){
 sce <- qcControl(count.table = count.table,
                  MAD = MAD,
                  generate.info = TRUE, 
-                 output.dir = output.dir)
+                 output.dir = output.dir,
+                 abundant.mt = mt.threshold)
 
 writeCountMatrix(sce = sce, 
                  log.normalize = normalize, 
                  filter.genes = TRUE,
                  gene.expressed.cells = filter.genes,
                  output.dir = output.dir)
-
 
 

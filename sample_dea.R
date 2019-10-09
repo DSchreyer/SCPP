@@ -10,12 +10,13 @@ library(pheatmap)
 library(RColorBrewer)
 library(pheatmap)
 library(ggplot2)
+library(ggpubr)
 
 input.dir <- "/home/daniel/master_thesis/bassoon_data/Output/final_ct_class///"
 output.dir <- "/home/daniel/master_thesis/bassoon_data/Output/final_downstream_analysis/"
 analysis.out <- "/home/daniel/master_thesis/bassoon_data/Output/final_downstream_analysis/"
 dir.create(output.dir, showWarnings = FALSE, recursive = TRUE)
-setwd(output.dir)
+setwd(output.dir)s
 
 samples <- paste0("Bsn.", seq(221931, 221940))
 samples <- samples[-5]
@@ -478,8 +479,8 @@ genes <- setdiff(genes, deg$wt1.wt2.rod$gene)
 subset <- subset(table, gene %in% genes)
 deg.filtered[["mut.ko.rod"]] <- subset
 
-### Generate filtered heatmap
-gene.list <- lapply(deg.filtered, "[", , c(1,3))
+### Generate raw heatmap
+gene.list <- lapply(deg, "[", , c(1,3))
 all.deg.list <- lapply(gene.list, "[", , 1)
 all.deg.list <- unique(unlist(all.deg.list))
 
@@ -500,26 +501,59 @@ all.deg.filtered <- pheatmap(full.table, cluster_cols = F,
                                     breaks = seq(-1.5,1.5, by = 0.05), 
                                     color = colors(60), fontsize_row = 5)
 
-mut.and.ko <- full.table %>% select(wt1.mut.cone, wt2.ko.cone, mut.ko.cone)
+mut.and.ko <- full.table %>% select(wt1.wt2.cone, wt.mut.cone, wt.ko.cone, mut.ko.cone)
 mut.and.ko <- mut.and.ko[rowSums(mut.and.ko) != 0, ]
+genes <- rownames(mut.and.ko)
+keep <- c("Ubb", "Opn1sw", "Pde6c", "Slc12a5")
+genes[which(!genes %in% keep)] <- ""
 mut.and.ko.heat <- pheatmap(mut.and.ko, cluster_cols = F, 
                              cluster_rows = T,
                              breaks = seq(-1.5,1.5, by = 0.05), 
-                             color = colors(60), fontsize_row = 5,
+                             color = colors(60), fontsize_row = 10,
                             fontsize_col = 8, angle_col = 0,
-                            labels_col = c("WT cones vs. mutant cones", "WT cones vs. knockout cones", "mutant cones vs. knockout cones"))
-ggsave(plot = mut.and.ko.heat, filename = "/home/daniel/master_thesis/bassoon_data/Output/Tables_Graphs/mut_ko_cone_heatmap.png")
+                            labels_row = genes,
+                            labels_col = c("B6J WT cones vs. B6N WT cones", "WT cones vs. mutant cones", "WT cones vs. knockout cones", "mutant cones vs. knockout cones"))
+ggsave(plot = mut.and.ko.heat, filename = "/home/daniel/master_thesis/bassoon_data/Output/Tables_Graphs/mut_ko_cone_heatmap.png",
+       width = 20, units = "cm")
 
 # rod.cone <- full.table %>% select(wt1.rod.cone, wt2.rod.cone, mut.rod.cone, ko.rod.cone)
 rod.cone <- full.table %>% select(mut.rod.cone, ko.rod.cone)
 rod.cone <- rod.cone[rowSums(rod.cone) != 0, ]
+col <- colorRampPalette(rev(brewer.pal(n = 6, name = "RdYlGn")))
+col <- rev(col(40))
+col[20] <- "#F2F4F3"
+
 rod.cone.heat <- pheatmap(rod.cone, cluster_cols = F, 
                             cluster_rows = T,
-                            breaks = seq(-1.5,1.5, by = 0.05), 
-                            color = colors(60), fontsize_row = 5, border_color = NA, 
+                            breaks = seq(-0.5,0.5, by = 0.025), 
+                            color = col, fontsize_row = 5, border_color = NA, 
                           labels_col = c("Bsn mutant rods vs. cones", "Bsn knockout rods vs cones"),
                           angle_col = 0)
 ggsave(plot = rod.cone.heat, filename = "/home/daniel/master_thesis/bassoon_data/Output/Tables_Graphs/rod_cone_heatmap.png")
+
+## cone-cone comparison
+cone <- full.table %>% select(wt1.wt2.cone, wt.mut.cone, wt.ko.cone, mut.ko.cone)
+cone <- rod.cone[rowSums(rod.cone) != 0, ]
+col <- colorRampPalette(rev(brewer.pal(n = 6, name = "RdYlGn")))
+col <- rev(col(60))
+col[30] <- "#F2F4F3"
+genes <- rownames(mut.and.ko)
+keep <- c("Opn1sw", "Pde6c", "Slc12a5",
+          "Gngt1", "Gngt2", "mt-Atp6",
+          "Rho", "mt-Co3", "Scl6a6")
+genes[which(!genes %in% keep)] <- ""
+rod.cone.heat <- pheatmap(rod.cone, cluster_cols = F, 
+                          cluster_rows = T,
+                          breaks = seq(-1.5,1.5, by = 0.05), 
+                          color = col, fontsize_row = 7, border_color = NA, 
+                          labels_row = genes, 
+                          fontsize_col = 10,
+                          labels_col = c("B6J WT vs. B6N WT", "B6J WT vs. Bsn mut", "B6N WT vs. Bsn ko", "Bsn mut vs. Bsn ko"),
+                          angle_col = 0)
+
+
+
+
 
 mut.ko.rod <- full.table %>% select(wt1.mut.rod, wt2.ko.rod, mut.ko.rod)
 mut.ko.rod <- mut.ko.rod[rowSums(mut.ko.rod) != 0, ]
@@ -534,6 +568,7 @@ ggsave(plot = mut.ko.rod.heat, filename = "/home/daniel/master_thesis/bassoon_da
 # databases <- c("GO_Biological_Process_2018")
 databases <- c("KEGG_2019_Mouse")
 enriched.filt <- list()
+deg.filtered.sep <- list()
 i <- 1
 names <- names(enriched)
 
@@ -542,8 +577,8 @@ for (table in deg.filtered){
   table$expr <- ifelse(table$avg_logFC > 0, "up", "down")
   up <- dplyr::filter(table, expr == "up")
   down <- dplyr::filter(table, expr == "down")
-  deg.sep[[paste(name, "up", sep = ".")]] <- up
-  deg.sep[[paste(name, "down", sep = ".")]] <- down
+  deg.filtered.sep[[paste(name, "up", sep = ".")]] <- up
+  deg.filtered.sep[[paste(name, "down", sep = ".")]] <- down
   enriched.filt.all <- enrichr(table$gene, databases)
   enriched.filt[[paste(name, "all", sep = ".")]] <- enriched.filt.all
   enriched.filt.up <- enrichr(up$gene, databases)
@@ -552,6 +587,7 @@ for (table in deg.filtered){
   enriched.filt[[paste(name, "down", sep = ".")]] <- enriched.filt.down
   i <- i + 1
 }
+
 up.down <- grepl(names(enriched.filt), pattern = "up|down")
 new <- enriched.filt[up.down]
 
@@ -584,6 +620,10 @@ colnames(full.table) <- paste0("V", seq(1, length(full.table)))
 full.table <- select(full.table, 3:length(full.table))
 colnames(full.table) <- names(path.pval)
 heat.table <- ifelse(full.table == 0 | is.na(full.table), 0, 1)
+
+### Select != genetic background
+heat.table <- dplyr::select(as.data.frame(heat.table), -wt1.rod.cone.up, -wt1.rod.cone.down, -wt2.rod.cone.down,
+       -wt1.wt2.cone.up, -wt1.wt2.cone.down, -wt1.wt2.rod.up, -wt1.wt2.rod.down)
 pathway.sep.heatmap <- pheatmap(heat.table, cluster_rows = T, cluster_cols = F, fontsize_row = 6)
 ggsave(plot = pathway.sep.heatmap, file = "go_term_heatmap.png", height = 20, units = "cm")
 
@@ -656,3 +696,13 @@ pheatmap(heat.table, cluster_rows = T, cluster_cols = F,
 write.table(x = heat.table, file = "deg.up.down.heatmap.csv", sep = ",")
 dev.off()
 m <- rownames(markers)
+
+
+
+### Get interesting genes Bsn mutant rods vs cones
+intersect(deg.sep$wt1.wt2.rod.up$gene, deg.sep$mut.ko.rod.down$gene)
+intersect(deg.sep$wt1.wt2.rod.down$gene, deg.sep$mut.ko.rod.up$gene)
+
+
+rownames(full.table) <- full.table$Term
+
