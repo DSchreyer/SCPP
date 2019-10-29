@@ -3,14 +3,14 @@
 input="/media/data2/Daniel/test/"
 output="/media/data2/Daniel/Output/comparative_analysis"
 
-for dir in $(ls $input); do
-  echo "Start pipeline with Sample $dir!"
+echo "Start pipeline with Sample $dir!"
   ./Pipeline.10x.sh \
     --output ${output}/$dir \
     --genome /media/data/Daniel/data/genome/Mus_musculus.GRCm38.dna.primary_assembly.fa \
     --annotation /media/data/Daniel/data/genome/Mus_musculus.GRCm38.96.gtf \
     --indicesDir /media/data/Daniel/data/indices \
-    --qualityControl "yes" \
+    --qualityControl "noor dir in $(ls $input); do
+" \
     --trimming "no" \
     --data ${input}/${dir} \
     --read "R2" \
@@ -27,22 +27,21 @@ for dir in $(ls $input); do
     --fastqc /media/data/tools/FastQC/fastqc \
     --featureCounts /media/data/tools/subread-1.6.4-Linux-x86_64/bin/featureCounts \
     --star /media/data/tools/STAR-2.7.0e/bin/Linux_x86_64/STAR \
-    --index "y" \
-    --threads 4 \
+    --index "yes" \
+    --threads 1 \
     --STARwhitelist "/media/data2/Daniel/cellranger_test/cellranger-3.0.2/cellranger-cs/3.0.2/lib/python/cellranger/barcodes/737K-august-2016.txt" \
     --UMITOOLSwhitelist "" \
-    --genWhitelist "yes" \
+    --genWhitelist "no" \
     --trimOptions "TRAILING:20 HEADCROP:20 MINLEN:75" \
     --useLanes "all" \
     --nGenes "100" \
     --nUMIs "125" \
     --MAD "5" \
-    --thresholdMT 0.5 \
+    --thresholdMT 1 \
     --filterGenes 0.001 \
     --normalize "yes" \
     --cellranger "/media/data/Daniel/cellranger-3.0.2/cellranger" \
     | tee ${output}/${dir}.Pipeline.log.out
-done
 
 # For every single cell sample create one directory with the sequencing files
 # Do not change project name, while running pipeline multiple times
