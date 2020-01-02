@@ -20,7 +20,7 @@ $ ./SCPP.sh --option1 " " --option2  ...
 
 ### Options available in this pipeline
 | Option  | Default | Function                                    | Branch |
-|:------------------|:------------------|:------------------------------------------------------|:-----------------:|
+|---------------------|:------------------|:------------------------------------------------------|:--------------:|
 | --data           | -                | Path to directory with scRNA-seq FASTQ files         |                 |
 | --output         | "./output"       | Path to directory to store output files in           |                 |
 | --threads        | 1                | Number of threads to use                             |                 |
@@ -32,13 +32,13 @@ $ ./SCPP.sh --option1 " " --option2  ...
 ||||
 | --useCellranger           | "yes"       | Use the CellRanger branch ["no/"yes"]                                                      | CellRanger |
 | --cellranger              | -           | Path to executable CellRanger                                                              |   |
-| --cellrangerTranscriptome | -           | Path to reference data set required for CellRanger Available on 10x Genomics download page |   |
+|--cellrangerTranscriptome| -           | Path to reference data set required for CellRanger Available on 10x Genomics download page |   |
 | --CRoptions               | -           | Alternative parameters for CellRanger                                                      |   |
 ||||
 | --useSTARsolo             | "no"        | Use STARsolo branch ["no"/"yes"]                                                           | STARsolo |
 | --STARwhitelist           | -           | Path to barcode whitelist for STARsolo                                                     |   |
 ||||
-| --genome                  | -           | Path to reference genome fasta file                                                        | STARsolo & UMI-tools|
+| --genome                  | -           | Path to reference genome fasta file                                                        | STARsolo UMI-tools|
 | --annotation              | -           | Path to reference genome annotation file                                                   |   |
 | --star                    | -           | Path to executable STAR                                                                    |   |
 | --STARoptions             | -           | Alternative parameters for STAR. See STAR manual                                           |   |
