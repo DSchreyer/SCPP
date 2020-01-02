@@ -60,3 +60,4 @@ $ ./SCPP.sh --option1 " " --option2  ...
 | --thresholdMT             | 1           | Maximal fraction of total UMI counts coming from MT genes                                  |   |
 | --filterGenes             | 0.001       | Remove sparsely expressed genes Fraction of cells a gene has to be expressed               |   |
 | --normalize               | "yes"       | Log normalize gene-barcode matrix ["yes"/"no"]          
+ 
