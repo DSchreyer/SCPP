@@ -20,7 +20,7 @@ $ ./SCPP.sh --option1 " " --option2  ...
 
 ### Options available in this pipeline
 | Option  | Default | Function                                    | Branch |
-|---------------------|:------------------|:------------------------------------------------------|:--------------:|
+|:---------------------:|:------------------:|:------------------------------------------------------:|:--------------:|
 | --data           | -                | Path to directory with scRNA-seq FASTQ files         |                 |
 | --output         | "./output"       | Path to directory to store output files in           |                 |
 | --threads        | 1                | Number of threads to use                             |                 |
