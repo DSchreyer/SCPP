@@ -1,3 +1,5 @@
+<meta name="google-site-verification" content="_rOy3YF6neYUwSlBQQEoKFFE3v6ONDbmSCCf4jzAlzc" />
+
 # SCPP - Single-cell RNA-seq processing pipeline
 This repository contains scripts that were created during my Master's thesis including the script for the SCPP. SCPP was tested under a Linux environment and is therefore not applicable with macOS or Windows. Only the SCPP script ("SCPP.sh") and the quality control and filtering script "sc_analysis_qc.R" are necessary to start the pipeline. The other scripts can be disregarded. For beginners, the "start_SCPP.sh" script might be interesting, because it contains information about the required and the optional parameters. 
 SCPP is also runnable with the "start_SCPP.sh" script. To execute this script, make it executable with `$ chmod +x start_SCPP.sh` and execute it with `$ ./start_SCPP.sh`.
